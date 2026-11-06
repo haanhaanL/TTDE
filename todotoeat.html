@@ -144,7 +144,7 @@
       border-radius: 10px;
       background: transparent;
       transition: background 0.25s ease, box-shadow 0.2s ease;
-      cursor: pointer;                 /* 整行可点击 */
+      cursor: pointer;
     }
 
     .todo-item:hover {
@@ -489,7 +489,7 @@
         const {
           inputId, addBtnId, listId, counterId,
           copyBtnId, resetBtnId, clearCompletedBtnId, clearAllBtnId,
-          emptyText, copyLabel, mode
+          emptyText, copyLabel, mode, storageKey
         } = config;
 
         let items = [];
@@ -515,6 +515,31 @@
           toast._timer = setTimeout(() => {
             toast.classList.remove('show');
           }, 1600);
+        }
+
+        // 从 localStorage 读取
+        function loadFromStorage() {
+          try {
+            const raw = localStorage.getItem(storageKey);
+            if (raw) {
+              const parsed = JSON.parse(raw);
+              if (Array.isArray(parsed)) {
+                items = parsed;
+              }
+            }
+          } catch (err) {
+            // 读取失败则保持空数组
+            items = [];
+          }
+        }
+
+        // 保存到 localStorage
+        function saveToStorage() {
+          try {
+            localStorage.setItem(storageKey, JSON.stringify(items));
+          } catch (err) {
+            // 存储失败（如无痕模式）静默处理
+          }
         }
 
         function updateCounter() {
@@ -665,6 +690,7 @@
             timeLabel: null
           }));
           items = [...newItems, ...items];
+          saveToStorage();
 
           render();
           input.value = '';
@@ -691,11 +717,13 @@
             item.completed = !item.completed;
           }
 
+          saveToStorage();
           render();
         }
 
         function deleteItem(id) {
           items = items.filter(t => t.id !== id);
+          saveToStorage();
           render();
         }
 
@@ -707,6 +735,7 @@
             completed: false,
             timeLabel: null
           }));
+          saveToStorage();
           render();
           showToast(`已重置 ${completedCount} 项勾选`);
         }
@@ -715,6 +744,7 @@
           const completedCount = items.filter(t => t.completed).length;
           if (completedCount === 0) return;
           items = items.filter(t => !t.completed);
+          saveToStorage();
           render();
           showToast(`已清理 ${completedCount} 项已完成`);
         }
@@ -722,6 +752,7 @@
         function clearAll() {
           if (items.length === 0) return;
           items = [];
+          saveToStorage();
           render();
           input.focus();
           showToast('已清空全部');
@@ -787,6 +818,16 @@
         clearAllBtn.addEventListener('click', clearAll);
         copyBtn.addEventListener('click', copyItems);
 
+        // 跨标签页同步：其他标签页修改了同一 key 时刷新
+        window.addEventListener('storage', (e) => {
+          if (e.key === storageKey) {
+            loadFromStorage();
+            render();
+          }
+        });
+
+        // 初始化：读取本地缓存并渲染
+        loadFromStorage();
         render();
 
         return {
@@ -805,7 +846,8 @@
         clearAllBtnId: 'clearAllBtn',
         emptyText: '还没有待办，添加一条吧',
         copyLabel: '待办',
-        mode: 'todo'
+        mode: 'todo',
+        storageKey: 'todo_items'
       });
 
       const eatList = createList({
@@ -819,7 +861,8 @@
         clearAllBtnId: 'eatClearAllBtn',
         emptyText: '还没有想吃的，添加一条吧',
         copyLabel: 'TOEAT',
-        mode: 'eat'
+        mode: 'eat',
+        storageKey: 'toeat_items'
       });
 
       const switchWords = document.querySelectorAll('.switch-word');
