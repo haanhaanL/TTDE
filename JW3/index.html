@@ -355,12 +355,13 @@
           daily: [
             { text: '送信' },
             { text: '私宅日常' },
-            { text: '每日订单' },
+            { text: '大掌柜' },
+            { text: '调香师' },
             { text: '跟宠周游' },
             { text: '许愿树' }
           ],
           weekly: [
-            { text: '家园周常' }
+            { text: '家园BOSS' }
           ]
         },
         common: {
@@ -371,15 +372,13 @@
           ],
           weekly: [
             { text: '世界 boss', target: 2 },
-            { text: '帮会订单' },
-            // { text: 'JJC' },
-            // { text: '吃鸡' },
-            // { text: '杀猪' }
+            { text: '帮会订单' }
           ]
         }
       };
 
       const STORAGE_PREFIX = 'jx3_';
+      const LAST_RESET_KEY = 'jx3_last_reset'; // 记录上次自动重置的“周一日期”
 
       const CATEGORIES = [
         { key: 'pve', dailyListId: 'list-pve-daily', weeklyListId: 'list-pve-weekly', counterId: 'counter-pve', resetId: 'reset-pve' },
@@ -387,6 +386,19 @@
         { key: 'pvx', dailyListId: 'list-pvx-daily', weeklyListId: 'list-pvx-weekly', counterId: 'counter-pvx', resetId: 'reset-pvx' },
         { key: 'common', dailyListId: 'list-common-daily', weeklyListId: 'list-common-weekly', counterId: 'counter-common', resetId: 'reset-common' }
       ];
+
+      // 取“本周一”的日期字符串，如 2026-11-02
+      function getMondayKey(date) {
+        const d = new Date(date);
+        d.setHours(0, 0, 0, 0);
+        const day = d.getDay(); // 0 = 周日, 1 = 周一
+        const diff = day === 0 ? -6 : 1 - day; // 周日回退到本周一
+        d.setDate(d.getDate() + diff);
+        const y = d.getFullYear();
+        const m = String(d.getMonth() + 1).padStart(2, '0');
+        const dd = String(d.getDate()).padStart(2, '0');
+        return `${y}-${m}-${dd}`;
+      }
 
       function showToast(message) {
         const toast = document.getElementById('toast');
@@ -435,7 +447,6 @@
 
           const buildGroup = (defGroup, oldGroup) => {
             const oldList = Array.isArray(oldGroup) ? oldGroup : [];
-            // 建立文本 -> 旧条目 的映射（同一文本取第一个）
             const oldByText = new Map();
             oldList.forEach(o => {
               if (o && typeof o.text === 'string' && !oldByText.has(o.text)) {
@@ -488,6 +499,32 @@
         function saveToStorage() {
           try {
             localStorage.setItem(storageKey, JSON.stringify(items));
+          } catch (err) {
+            // 静默
+          }
+        }
+
+        // 每周一自动重置：跨周则整体恢复默认（包括 PVE 10 人名称）
+        function maybeAutoReset() {
+          const thisMonday = getMondayKey(new Date());
+          let lastMonday = null;
+          try {
+            lastMonday = localStorage.getItem(LAST_RESET_KEY);
+          } catch (err) {
+            return;
+          }
+
+          if (lastMonday === thisMonday) return; // 本周已处理过
+
+          if (lastMonday) {
+            // 有历史记录且跨周，整体恢复默认
+            items = buildDefaultItems();
+            saveToStorage();
+          }
+
+          // 首次访问或已跨周，都记录本周一
+          try {
+            localStorage.setItem(LAST_RESET_KEY, thisMonday);
           } catch (err) {
             // 静默
           }
@@ -585,6 +622,8 @@
           render();
         }
 
+        // 手动“重置”：只清勾选/计数，不恢复 10 人名称。
+        // 若想手动重置也恢复 10 人名称，把下面 items = {...} 换成 items = buildDefaultItems();
         function resetCategory(silent) {
           const all = getAllItems();
           const completedCount = all.filter(t => t.completed).length;
@@ -624,12 +663,14 @@
         resetBtn.addEventListener('click', () => resetCategory(false));
 
         loadFromStorage();
+        maybeAutoReset(); // 加载后检查是否跨周
         render();
 
         return {
           reset: resetCategory,
           refresh: () => {
             loadFromStorage();
+            maybeAutoReset();
             render();
           },
           applyReplacements
