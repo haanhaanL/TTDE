@@ -1,0 +1,862 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>TODO / TOEAT</title>
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    body {
+      background-color: #ffffff;
+      font-family: system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+      display: flex;
+      justify-content: center;
+      align-items: flex-start;
+      min-height: 100vh;
+      padding: 2.5rem 1rem;
+      line-height: 1.5;
+      color: #1a1a1a;
+    }
+
+    .app {
+      width: 100%;
+      max-width: 680px;
+      background: #ffffff;
+      border: 1px solid #e5e5e5;
+      border-radius: 16px;
+      padding: 2.2rem 2rem;
+      box-shadow: 0 8px 30px rgba(0, 0, 0, 0.06);
+    }
+
+    h1 {
+      font-size: 1.8rem;
+      font-weight: 600;
+      letter-spacing: -0.01em;
+      color: #1a1a1a;
+      padding-bottom: 0.75rem;
+      margin-bottom: 1.4rem;
+      border-bottom: 1px solid #ebebeb;
+      display: flex;
+      align-items: center;
+      gap: 0.9rem;
+      user-select: none;
+    }
+
+    h1 .switch-word {
+      cursor: pointer;
+      color: #c0c0c0;
+      transition: color 0.2s ease;
+    }
+
+    h1 .switch-word:hover {
+      color: #777;
+    }
+
+    h1 .switch-word.active {
+      color: #1a1a1a;
+    }
+
+    h1 .divider {
+      color: #d5d5d5;
+      font-weight: 400;
+      pointer-events: none;
+    }
+
+    .tab-panel {
+      display: none;
+    }
+
+    .tab-panel.active {
+      display: block;
+    }
+
+    .input-section {
+      display: flex;
+      gap: 0.6rem;
+      margin-bottom: 1.2rem;
+      flex-wrap: wrap;
+    }
+
+    .input-section input {
+      flex: 1;
+      min-width: 180px;
+      padding: 0.85rem 1.1rem;
+      font-size: 1rem;
+      font-family: inherit;
+      background: #fafafa;
+      border: 1px solid #e0e0e0;
+      border-radius: 10px;
+      outline: none;
+      color: #1a1a1a;
+      transition: all 0.2s ease;
+    }
+
+    .input-section input::placeholder {
+      color: #aaa;
+    }
+
+    .input-section input:focus {
+      background: #ffffff;
+      border-color: #1a1a1a;
+      box-shadow: 0 0 0 3px rgba(0, 0, 0, 0.05);
+    }
+
+    .input-section button {
+      padding: 0.85rem 1.4rem;
+      font-size: 1rem;
+      font-weight: 500;
+      font-family: inherit;
+      background: #1a1a1a;
+      color: #ffffff;
+      border: 1px solid #1a1a1a;
+      border-radius: 10px;
+      cursor: pointer;
+      transition: all 0.2s ease;
+      white-space: nowrap;
+    }
+
+    .input-section button:hover {
+      background: #333333;
+      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.12);
+    }
+
+    .input-section button:active {
+      transform: scale(0.97);
+    }
+
+    .todo-list {
+      list-style: none;
+      display: flex;
+      flex-direction: column;
+      gap: 0.35rem;
+    }
+
+    .todo-item {
+      display: flex;
+      align-items: center;
+      gap: 1rem;
+      padding: 0.75rem 1rem;
+      border-radius: 10px;
+      background: transparent;
+      transition: background 0.25s ease, box-shadow 0.2s ease;
+      cursor: pointer;                 /* 整行可点击 */
+    }
+
+    .todo-item:hover {
+      background: linear-gradient(135deg, #fafafa 0%, #f5f5f5 100%);
+      box-shadow: 0 2px 10px rgba(0, 0, 0, 0.03);
+    }
+
+    .todo-text {
+      flex: 1;
+      font-size: 1.05rem;
+      color: #1a1a1a;
+      word-break: break-word;
+      min-width: 0;
+      transition: all 0.25s ease;
+    }
+
+    .todo-text .time-label {
+      display: inline-block;
+      margin-left: 0.8rem;
+      font-size: 0.8rem;
+      color: #b8b8b8;
+      text-decoration: none;
+      font-weight: 400;
+      vertical-align: baseline;
+    }
+
+    .todo-item input[type="checkbox"] {
+      appearance: none;
+      -webkit-appearance: none;
+      width: 1.5rem;
+      height: 1.5rem;
+      flex-shrink: 0;
+      background: #ffffff;
+      border: 1.5px solid #dcdcdc;
+      border-radius: 8px;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      transition: border-color 0.2s ease, background 0.2s ease, box-shadow 0.2s ease;
+      position: relative;
+      margin: 0;
+    }
+
+    .todo-item input[type="checkbox"]:hover {
+      border-color: #b0b0b0;
+      box-shadow: 0 0 0 3px rgba(0, 0, 0, 0.03);
+    }
+
+    .todo-item input[type="checkbox"]:checked {
+      background: #333333;
+      border-color: #333333;
+    }
+
+    .todo-item input[type="checkbox"]:checked:hover {
+      background: #1a1a1a;
+      border-color: #1a1a1a;
+    }
+
+    .todo-item input[type="checkbox"]:checked::after {
+      content: "✓";
+      font-size: 1rem;
+      font-weight: 500;
+      color: #ffffff;
+      line-height: 1;
+      display: block;
+      text-align: center;
+      transform: translateY(-0.5px);
+    }
+
+    .todo-item.completed .todo-text .text-content {
+      text-decoration: line-through;
+      text-decoration-thickness: 1.5px;
+      text-decoration-color: #c8c8c8;
+      color: #b8b8b8;
+    }
+
+    .todo-item.completed .todo-text:not(:has(.time-label)) {
+      text-decoration: line-through;
+      text-decoration-thickness: 1.5px;
+      text-decoration-color: #c8c8c8;
+      color: #b8b8b8;
+    }
+
+    .delete-btn {
+      background: none;
+      border: none;
+      font-size: 1.4rem;
+      line-height: 1;
+      cursor: pointer;
+      color: #c8c8c8;
+      padding: 0.1rem 0.3rem;
+      border-radius: 6px;
+      transition: all 0.2s ease;
+      flex-shrink: 0;
+      opacity: 0.6;
+    }
+
+    .delete-btn:hover {
+      color: #1a1a1a;
+      background: #efefef;
+      opacity: 1;
+    }
+
+    .todo-item:hover .delete-btn {
+      opacity: 1;
+    }
+
+    .empty-message {
+      text-align: center;
+      padding: 2.2rem 1rem;
+      color: #aaa;
+      font-size: 0.95rem;
+      margin-top: 0.3rem;
+    }
+
+    .footer {
+      margin-top: 1.4rem;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      font-size: 0.85rem;
+      color: #999;
+      border-top: 1px solid #f2f2f2;
+      padding-top: 1.1rem;
+      flex-wrap: wrap;
+      gap: 0.8rem;
+    }
+
+    .footer .counter {
+      color: #999;
+      transition: color 0.2s ease;
+      word-spacing: 0.25em;
+    }
+
+    .footer .counter.empty {
+      color: #c8c8c8;
+      word-spacing: normal;
+    }
+
+    .footer-actions {
+      display: flex;
+      gap: 0.5rem;
+      flex-wrap: wrap;
+      margin-left: auto;
+      justify-content: flex-end;
+    }
+
+    .tool-btn {
+      background: #ffffff;
+      border: 1px solid #e8e8e8;
+      padding: 0.45rem 1rem;
+      font-size: 0.8rem;
+      font-weight: 500;
+      font-family: inherit;
+      color: #888;
+      border-radius: 8px;
+      cursor: pointer;
+      transition: all 0.2s ease;
+      white-space: nowrap;
+    }
+
+    .tool-btn:hover {
+      background: #1a1a1a;
+      color: #ffffff;
+      border-color: #1a1a1a;
+    }
+
+    .tool-btn:active {
+      transform: scale(0.96);
+    }
+
+    .tool-btn:disabled {
+      opacity: 0.45;
+      cursor: not-allowed;
+      background: #fafafa;
+      color: #bbb;
+      border-color: #efefef;
+    }
+
+    .tool-btn:disabled:hover {
+      background: #fafafa;
+      color: #bbb;
+      border-color: #efefef;
+      transform: none;
+    }
+
+    .toast {
+      position: fixed;
+      left: 50%;
+      bottom: 2rem;
+      transform: translateX(-50%) translateY(1rem);
+      background: #1a1a1a;
+      color: #ffffff;
+      font-size: 0.85rem;
+      padding: 0.6rem 1.2rem;
+      border-radius: 8px;
+      opacity: 0;
+      pointer-events: none;
+      transition: all 0.25s ease;
+      z-index: 100;
+      box-shadow: 0 6px 20px rgba(0, 0, 0, 0.15);
+    }
+
+    .toast.show {
+      opacity: 1;
+      transform: translateX(-50%) translateY(0);
+    }
+
+    @media (max-width: 480px) {
+      body {
+        padding: 2rem 0.8rem 1.2rem;
+      }
+      .app {
+        padding: 1.5rem 1.2rem;
+        border-radius: 14px;
+      }
+      h1 {
+        font-size: 1.5rem;
+        gap: 0.7rem;
+      }
+      .input-section button {
+        padding: 0.85rem 1.2rem;
+      }
+      .todo-item {
+        padding: 0.7rem 0.6rem;
+        gap: 0.7rem;
+      }
+      .todo-item input[type="checkbox"] {
+        width: 1.35rem;
+        height: 1.35rem;
+        border-radius: 7px;
+      }
+      .todo-text {
+        font-size: 1rem;
+      }
+      .todo-text .time-label {
+        margin-left: 0.6rem;
+        font-size: 0.75rem;
+      }
+      .footer {
+        flex-direction: row;
+        align-items: center;
+        gap: 0.6rem;
+      }
+      .footer-actions {
+        margin-left: auto;
+        justify-content: flex-end;
+        gap: 0.4rem;
+      }
+      .tool-btn {
+        flex: 0 0 auto;
+        padding: 0.45rem 1rem;
+        font-size: 0.75rem;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="app">
+    <h1>
+      <span class="switch-word active" data-tab="todo">TODO</span>
+      <span class="divider">/</span>
+      <span class="switch-word" data-tab="eat">TOEAT</span>
+    </h1>
+
+    <!-- 待办面板 -->
+    <div class="tab-panel active" id="panel-todo">
+      <div class="input-section">
+        <input type="text" id="todoInput" placeholder="空格/逗号分隔" autocomplete="off" autofocus>
+        <button id="addBtn">添加</button>
+      </div>
+
+      <ul class="todo-list" id="todoList"></ul>
+
+      <div class="footer">
+        <span id="counter" class="counter empty">0 项</span>
+        <div class="footer-actions">
+          <button class="tool-btn" id="copyBtn">复制</button>
+          <button class="tool-btn" id="resetBtn">重置</button>
+          <button class="tool-btn" id="clearCompletedBtn">清理</button>
+          <button class="tool-btn" id="clearAllBtn">清空</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- TOEAT 面板 -->
+    <div class="tab-panel" id="panel-eat">
+      <div class="input-section">
+        <input type="text" id="eatInput" placeholder="空格/逗号分隔" autocomplete="off">
+        <button id="eatAddBtn">添加</button>
+      </div>
+
+      <ul class="todo-list" id="eatList"></ul>
+
+      <div class="footer">
+        <span id="eatCounter" class="counter empty">0 项</span>
+        <div class="footer-actions">
+          <button class="tool-btn" id="eatCopyBtn">复制</button>
+          <button class="tool-btn" id="eatResetBtn">重置</button>
+          <button class="tool-btn" id="eatClearCompletedBtn">清理</button>
+          <button class="tool-btn" id="eatClearAllBtn">清空</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="toast" id="toast"></div>
+
+  <script>
+    (function() {
+      function getDateTimeLabel() {
+        const now = new Date();
+        const month = now.getMonth() + 1;
+        const day = now.getDate();
+        const hour = now.getHours();
+
+        let period;
+        if (hour >= 6 && hour < 11) {
+          period = '早';
+        } else if (hour >= 11 && hour < 16) {
+          period = '午';
+        } else if (hour >= 16 && hour < 21) {
+          period = '晚';
+        } else {
+          period = '夜';
+        }
+
+        return `${month}/${day} ${period}`;
+      }
+
+      function periodWeight(label) {
+        if (!label) return 99;
+        if (label.includes('早')) return 0;
+        if (label.includes('午')) return 1;
+        if (label.includes('晚')) return 2;
+        if (label.includes('夜')) return 3;
+        return 99;
+      }
+
+      function createList(config) {
+        const {
+          inputId, addBtnId, listId, counterId,
+          copyBtnId, resetBtnId, clearCompletedBtnId, clearAllBtnId,
+          emptyText, copyLabel, mode
+        } = config;
+
+        let items = [];
+
+        const input = document.getElementById(inputId);
+        const addBtn = document.getElementById(addBtnId);
+        const list = document.getElementById(listId);
+        const counter = document.getElementById(counterId);
+        const copyBtn = document.getElementById(copyBtnId);
+        const resetBtn = document.getElementById(resetBtnId);
+        const clearCompletedBtn = document.getElementById(clearCompletedBtnId);
+        const clearAllBtn = document.getElementById(clearAllBtnId);
+
+        function generateId() {
+          return Date.now() + '-' + Math.random().toString(36).substring(2, 9);
+        }
+
+        function showToast(message) {
+          const toast = document.getElementById('toast');
+          toast.textContent = message;
+          toast.classList.add('show');
+          if (toast._timer) clearTimeout(toast._timer);
+          toast._timer = setTimeout(() => {
+            toast.classList.remove('show');
+          }, 1600);
+        }
+
+        function updateCounter() {
+          const total = items.length;
+          const completed = items.filter(t => t.completed).length;
+
+          if (total === 0) {
+            counter.textContent = '0 项';
+            counter.classList.add('empty');
+          } else {
+            counter.textContent = `${completed} / ${total}`;
+            counter.classList.remove('empty');
+          }
+
+          resetBtn.disabled = completed === 0;
+          clearCompletedBtn.disabled = completed === 0;
+          clearAllBtn.disabled = total === 0;
+          copyBtn.disabled = total === 0;
+        }
+
+        function getRenderItems() {
+          if (mode !== 'eat') return items;
+
+          const undone = items.filter(t => !t.completed);
+          const done = items
+            .filter(t => t.completed)
+            .sort((a, b) => {
+              const wA = periodWeight(a.timeLabel);
+              const wB = periodWeight(b.timeLabel);
+              if (wA !== wB) return wA - wB;
+              return a.id.localeCompare(b.id);
+            });
+
+          return [...undone, ...done];
+        }
+
+        function render() {
+          list.innerHTML = '';
+          const renderItems = getRenderItems();
+
+          if (renderItems.length === 0) {
+            const emptyLi = document.createElement('li');
+            emptyLi.className = 'empty-message';
+            emptyLi.textContent = emptyText;
+            list.appendChild(emptyLi);
+          } else {
+            renderItems.forEach(item => {
+              const li = document.createElement('li');
+              li.className = 'todo-item';
+              if (item.completed) li.classList.add('completed');
+              li.dataset.id = item.id;
+
+              const textSpan = document.createElement('span');
+              textSpan.className = 'todo-text';
+
+              const contentSpan = document.createElement('span');
+              contentSpan.className = 'text-content';
+              contentSpan.textContent = item.text;
+              textSpan.appendChild(contentSpan);
+
+              if (mode === 'eat' && item.completed && item.timeLabel) {
+                const timeSpan = document.createElement('span');
+                timeSpan.className = 'time-label';
+                timeSpan.textContent = item.timeLabel;
+                textSpan.appendChild(timeSpan);
+              }
+
+              const checkbox = document.createElement('input');
+              checkbox.type = 'checkbox';
+              checkbox.checked = item.completed;
+              checkbox.addEventListener('change', (e) => {
+                e.stopPropagation();
+                toggleItem(item.id);
+              });
+
+              const deleteBtn = document.createElement('button');
+              deleteBtn.className = 'delete-btn';
+              deleteBtn.innerHTML = '×';
+              deleteBtn.setAttribute('aria-label', '删除');
+              deleteBtn.addEventListener('click', (e) => {
+                e.stopPropagation();
+                deleteItem(item.id);
+              });
+
+              li.appendChild(textSpan);
+              li.appendChild(checkbox);
+              li.appendChild(deleteBtn);
+
+              // 点击整行切换勾选，避开删除按钮和复选框
+              li.addEventListener('click', (e) => {
+                const target = e.target;
+                if (target.closest('.delete-btn') || target.closest('input[type="checkbox"]')) {
+                  return;
+                }
+                toggleItem(item.id);
+              });
+
+              list.appendChild(li);
+            });
+          }
+
+          updateCounter();
+        }
+
+        function splitInput(text) {
+          if (!text) return [];
+          return text
+            .split(/[\s,，]+/)
+            .map(s => s.trim())
+            .filter(s => s !== '');
+        }
+
+        // 添加时去重：跳过已有文字（忽略首尾空格）和同批重复
+        function addItem() {
+          const parts = splitInput(input.value);
+          if (parts.length === 0) {
+            input.focus();
+            return;
+          }
+
+          const existingTexts = new Set(items.map(t => t.text.trim()));
+          const seenInBatch = new Set();
+          const uniqueParts = [];
+          let skipped = 0;
+
+          parts.forEach(text => {
+            const key = text.trim();
+            if (existingTexts.has(key) || seenInBatch.has(key)) {
+              skipped++;
+            } else {
+              seenInBatch.add(key);
+              uniqueParts.push(text);
+            }
+          });
+
+          if (uniqueParts.length === 0) {
+            input.value = '';
+            input.focus();
+            showToast(`跳过 ${skipped} 项重复内容`);
+            return;
+          }
+
+          // 新增项插到最前面，保持输入顺序
+          const newItems = uniqueParts.map(text => ({
+            id: generateId(),
+            text,
+            completed: false,
+            timeLabel: null
+          }));
+          items = [...newItems, ...items];
+
+          render();
+          input.value = '';
+          input.focus();
+
+          if (skipped > 0) {
+            showToast(`已添加 ${uniqueParts.length} 项，跳过 ${skipped} 项重复`);
+          }
+        }
+
+        function toggleItem(id) {
+          const item = items.find(t => t.id === id);
+          if (!item) return;
+
+          if (mode === 'eat') {
+            if (!item.completed) {
+              item.completed = true;
+              item.timeLabel = getDateTimeLabel();
+            } else {
+              item.completed = false;
+              item.timeLabel = null;
+            }
+          } else {
+            item.completed = !item.completed;
+          }
+
+          render();
+        }
+
+        function deleteItem(id) {
+          items = items.filter(t => t.id !== id);
+          render();
+        }
+
+        function resetChecked() {
+          const completedCount = items.filter(t => t.completed).length;
+          if (completedCount === 0) return;
+          items = items.map(item => ({
+            ...item,
+            completed: false,
+            timeLabel: null
+          }));
+          render();
+          showToast(`已重置 ${completedCount} 项勾选`);
+        }
+
+        function clearCompleted() {
+          const completedCount = items.filter(t => t.completed).length;
+          if (completedCount === 0) return;
+          items = items.filter(t => !t.completed);
+          render();
+          showToast(`已清理 ${completedCount} 项已完成`);
+        }
+
+        function clearAll() {
+          if (items.length === 0) return;
+          items = [];
+          render();
+          input.focus();
+          showToast('已清空全部');
+        }
+
+        function buildCopyText() {
+          if (items.length === 0) return '';
+
+          // TOEAT 只复制未完成项；TODO 复制全部
+          const list = mode === 'eat'
+            ? items.filter(t => !t.completed)
+            : items;
+
+          return list.map(t => {
+            if (mode === 'eat' && t.completed && t.timeLabel) {
+              return `${t.text} ${t.timeLabel}`;
+            }
+            return t.text;
+          }).join(', ');
+        }
+
+        function copyItems() {
+          const text = buildCopyText();
+          if (!text) return;
+
+          const onSuccess = () => showToast(`${copyLabel}已复制到剪贴板`);
+          const onFail = () => {
+            try {
+              const ta = document.createElement('textarea');
+              ta.value = text;
+              ta.style.position = 'fixed';
+              ta.style.opacity = '0';
+              document.body.appendChild(ta);
+              ta.select();
+              const ok = document.execCommand('copy');
+              document.body.removeChild(ta);
+              if (ok) {
+                onSuccess();
+              } else {
+                showToast('复制失败，请手动选择复制');
+              }
+            } catch (err) {
+              showToast('复制失败，请手动选择复制');
+            }
+          };
+
+          if (navigator.clipboard && navigator.clipboard.writeText) {
+            navigator.clipboard.writeText(text).then(onSuccess).catch(onFail);
+          } else {
+            onFail();
+          }
+        }
+
+        addBtn.addEventListener('click', addItem);
+        input.addEventListener('keydown', (e) => {
+          if (e.key === 'Enter') {
+            e.preventDefault();
+            addItem();
+          }
+        });
+        resetBtn.addEventListener('click', resetChecked);
+        clearCompletedBtn.addEventListener('click', clearCompleted);
+        clearAllBtn.addEventListener('click', clearAll);
+        copyBtn.addEventListener('click', copyItems);
+
+        render();
+
+        return {
+          focusInput: () => input.focus()
+        };
+      }
+
+      const todoList = createList({
+        inputId: 'todoInput',
+        addBtnId: 'addBtn',
+        listId: 'todoList',
+        counterId: 'counter',
+        copyBtnId: 'copyBtn',
+        resetBtnId: 'resetBtn',
+        clearCompletedBtnId: 'clearCompletedBtn',
+        clearAllBtnId: 'clearAllBtn',
+        emptyText: '还没有待办，添加一条吧',
+        copyLabel: '待办',
+        mode: 'todo'
+      });
+
+      const eatList = createList({
+        inputId: 'eatInput',
+        addBtnId: 'eatAddBtn',
+        listId: 'eatList',
+        counterId: 'eatCounter',
+        copyBtnId: 'eatCopyBtn',
+        resetBtnId: 'eatResetBtn',
+        clearCompletedBtnId: 'eatClearCompletedBtn',
+        clearAllBtnId: 'eatClearAllBtn',
+        emptyText: '还没有想吃的，添加一条吧',
+        copyLabel: 'TOEAT',
+        mode: 'eat'
+      });
+
+      const switchWords = document.querySelectorAll('.switch-word');
+      const panels = {
+        todo: document.getElementById('panel-todo'),
+        eat: document.getElementById('panel-eat')
+      };
+
+      let currentTab = 'todo';
+
+      function switchTab(target) {
+        if (target === currentTab) return;
+        currentTab = target;
+
+        switchWords.forEach(word => {
+          word.classList.toggle('active', word.dataset.tab === target);
+        });
+
+        Object.keys(panels).forEach(key => {
+          panels[key].classList.toggle('active', key === target);
+        });
+
+        if (target === 'todo') {
+          todoList.focusInput();
+        } else {
+          eatList.focusInput();
+        }
+      }
+
+      switchWords.forEach(word => {
+        word.addEventListener('click', () => {
+          switchTab(word.dataset.tab);
+        });
+      });
+
+      todoList.focusInput();
+    })();
+  </script>
+</body>
+</html>
