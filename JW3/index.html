@@ -262,7 +262,7 @@
     </div>
 
     <div class="top-input visible" id="tenInputArea">
-      <input type="text" id="tenInput" placeholder="输入本周 10 人（空格/逗号分隔）" autocomplete="off">
+      <input type="text" id="tenInput" placeholder="输入本周 10 人（空格/逗号分隔，可分两次填 A、B）" autocomplete="off">
       <button id="tenApplyBtn">应用</button>
     </div>
 
@@ -378,7 +378,7 @@
       };
 
       const STORAGE_PREFIX = 'jx3_';
-      const LAST_RESET_KEY = 'jx3_last_reset'; // 记录上次自动重置的“周一日期”
+      const LAST_RESET_KEY = 'jx3_last_reset'; // 全局：记录上次周常自动重置的“周一日期”
 
       const CATEGORIES = [
         { key: 'pve', dailyListId: 'list-pve-daily', weeklyListId: 'list-pve-weekly', counterId: 'counter-pve', resetId: 'reset-pve' },
@@ -394,6 +394,15 @@
         const day = d.getDay(); // 0 = 周日, 1 = 周一
         const diff = day === 0 ? -6 : 1 - day; // 周日回退到本周一
         d.setDate(d.getDate() + diff);
+        const y = d.getFullYear();
+        const m = String(d.getMonth() + 1).padStart(2, '0');
+        const dd = String(d.getDate()).padStart(2, '0');
+        return `${y}-${m}-${dd}`;
+      }
+
+      // 取“今天”的日期字符串，如 2026-11-06
+      function getDateKey(date) {
+        const d = new Date(date);
         const y = d.getFullYear();
         const m = String(d.getMonth() + 1).padStart(2, '0');
         const dd = String(d.getDate()).padStart(2, '0');
@@ -425,6 +434,7 @@
       function createCategory(config) {
         const { key, dailyListId, weeklyListId, counterId, resetId } = config;
         const storageKey = STORAGE_PREFIX + key;
+        const LAST_DAILY_KEY = STORAGE_PREFIX + key + '_last_daily'; // 分类：记录上次日常自动重置的日期
 
         const dailyListEl = document.getElementById(dailyListId);
         const weeklyListEl = document.getElementById(weeklyListId);
@@ -440,27 +450,23 @@
           };
         }
 
-        // 按“默认顺序”重建，同时用旧数据按文本匹配恢复 count/completed，
-        // 这样调整默认顺序后不会丢勾选状态。
+        // 按“索引”合并默认结构与旧数据：
+        // - text 优先保留旧数据里的实际名称（例如手动输入的 10 人副本名）
+        // - target 优先保留旧数据（>1 才生效）
+        // - count / completed 保留旧数据
         function normalizeItems(parsed) {
           const def = DEFAULT_ITEMS[key];
 
           const buildGroup = (defGroup, oldGroup) => {
             const oldList = Array.isArray(oldGroup) ? oldGroup : [];
-            const oldByText = new Map();
-            oldList.forEach(o => {
-              if (o && typeof o.text === 'string' && !oldByText.has(o.text)) {
-                oldByText.set(o.text, o);
-              }
-            });
-
-            return defGroup.map((d) => {
+            return defGroup.map((d, i) => {
               const base = buildItem(d);
-              const old = oldByText.get(base.text) || {};
-              const count = typeof old.count === 'number' ? old.count : 0;
+              const old = oldList[i] || {};
               return {
                 ...base,
-                count,
+                text: typeof old.text === 'string' && old.text ? old.text : base.text,
+                target: typeof old.target === 'number' && old.target > 1 ? old.target : base.target,
+                count: typeof old.count === 'number' ? old.count : 0,
                 completed: !!old.completed
               };
             });
@@ -504,29 +510,61 @@
           }
         }
 
-        // 每周一自动重置：跨周则整体恢复默认（包括 PVE 10 人名称）
+        // 自动重置：
+        // - 日常：跨天清勾选/计数，保留文字
+        // - 周常：仅“已有历史周一记录且跨周”时恢复默认（含 10 人名称）
+        // 首次访问、同一日/同一周内刷新网页都不会改动任何状态。
         function maybeAutoReset() {
+          const today = getDateKey(new Date());
           const thisMonday = getMondayKey(new Date());
+
+          let lastDaily = null;
           let lastMonday = null;
           try {
+            lastDaily = localStorage.getItem(LAST_DAILY_KEY);
             lastMonday = localStorage.getItem(LAST_RESET_KEY);
           } catch (err) {
             return;
           }
 
-          if (lastMonday === thisMonday) return; // 本周已处理过
+          // 读取当前存储；没有有效数据时才用默认兜底
+          let data = null;
+          let hasStored = false;
+          try {
+            const raw = localStorage.getItem(storageKey);
+            if (raw) {
+              const parsed = JSON.parse(raw);
+              if (isStorageValid(parsed)) {
+                data = normalizeItems(parsed);
+                hasStored = true;
+              }
+            }
+          } catch (err) {}
+          if (!data) data = buildDefaultItems();
 
-          if (lastMonday) {
-            // 有历史记录且跨周，整体恢复默认
-            items = buildDefaultItems();
-            saveToStorage();
+          let changed = false;
+
+          // 日常：跨天清勾选/计数（保留 text）
+          if (lastDaily !== today) {
+            data.daily = data.daily.map(item => ({ ...item, count: 0, completed: false }));
+            try { localStorage.setItem(LAST_DAILY_KEY, today); } catch (err) {}
+            changed = true;
           }
 
-          // 首次访问或已跨周，都记录本周一
-          try {
-            localStorage.setItem(LAST_RESET_KEY, thisMonday);
-          } catch (err) {
-            // 静默
+          // 周常：只有“已有历史周一记录且跨周”才恢复默认
+          if (lastMonday && lastMonday !== thisMonday) {
+            data.weekly = buildDefaultItems().weekly;
+            changed = true;
+          }
+
+          // 记录本周一（首次访问也记录，但不改 weekly）
+          if (!lastMonday || lastMonday !== thisMonday) {
+            try { localStorage.setItem(LAST_RESET_KEY, thisMonday); } catch (err) {}
+          }
+
+          // 只有真的变了才写回；首次访问无存储且日常未变时不写，避免把兜底默认覆盖存储
+          if (changed) {
+            try { localStorage.setItem(storageKey, JSON.stringify(data)); } catch (err) {}
           }
         }
 
@@ -623,7 +661,6 @@
         }
 
         // 手动“重置”：只清勾选/计数，不恢复 10 人名称。
-        // 若想手动重置也恢复 10 人名称，把下面 items = {...} 换成 items = buildDefaultItems();
         function resetCategory(silent) {
           const all = getAllItems();
           const completedCount = all.filter(t => t.completed).length;
@@ -640,15 +677,42 @@
           return completedCount;
         }
 
-        // 直接替换 PVE 周常第 2、3 条（索引 1、2）的文字；空值不覆盖
+        // 十人周常输入：按空位填充 weekly[1]、weekly[2]。
+        // 支持分两次输入（第一次填 A、第二次填 B），也可一次输入两个。
+        // 空位判定：文本为空，或仍是占位符 "10人 · A" / "10人 · B"。
         function applyReplacements(texts) {
           if (key !== 'pve' || !Array.isArray(texts)) return;
-          if (items.weekly[1] && texts[0] && texts[0].trim()) {
-            items.weekly[1].text = `10人 · ${texts[0].trim()}`;
+          const parts = texts.map(s => (s || '').trim()).filter(Boolean);
+          if (parts.length === 0) return;
+
+          const slots = [1, 2]; // weekly 索引：第 2、3 条
+          const isPlaceholder = (text) => {
+            if (!text) return true;
+            return /^10人 · (A|B)$/.test(text);
+          };
+
+          let slotIdx = 0;
+          for (const p of parts) {
+            let placed = false;
+            while (slotIdx < slots.length) {
+              const idx = slots[slotIdx];
+              const cur = items.weekly[idx];
+              if (cur && isPlaceholder(cur.text)) {
+                cur.text = `10人 · ${p}`;
+                slotIdx++;
+                placed = true;
+                break;
+              }
+              slotIdx++;
+            }
+            if (!placed) {
+              // 没有空位了，从头覆盖
+              const idx = slots[slotIdx % slots.length];
+              if (items.weekly[idx]) items.weekly[idx].text = `10人 · ${p}`;
+              slotIdx++;
+            }
           }
-          if (items.weekly[2] && texts[1] && texts[1].trim()) {
-            items.weekly[2].text = `10人 · ${texts[1].trim()}`;
-          }
+
           saveToStorage();
           render();
         }
@@ -662,15 +726,16 @@
 
         resetBtn.addEventListener('click', () => resetCategory(false));
 
+        // 初始化顺序：先按天/周判断重置，再加载存储、渲染
+        maybeAutoReset();
         loadFromStorage();
-        maybeAutoReset(); // 加载后检查是否跨周
         render();
 
         return {
           reset: resetCategory,
           refresh: () => {
-            loadFromStorage();
             maybeAutoReset();
+            loadFromStorage();
             render();
           },
           applyReplacements
@@ -695,9 +760,9 @@
           .split(/[\s,，]+/)
           .map(s => s.trim())
           .filter(s => s !== '');
-        instances.pve.applyReplacements([parts[0] || '', parts[1] || '']);
+        instances.pve.applyReplacements(parts);
         tenInput.value = ''; // 提交后清空
-        if (parts[0] || parts[1]) {
+        if (parts.length > 0) {
           showToast('10人周常已更新');
         } else {
           showToast('请输入 10 人副本名称');
