@@ -1,0 +1,834 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>剑网3 · 日常清单</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+
+    body {
+      background-color: #ffffff;
+      font-family: system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+      display: flex;
+      justify-content: center;
+      align-items: flex-start;
+      min-height: 100vh;
+      padding: 2.5rem 1rem;
+      line-height: 1.5;
+      color: #1a1a1a;
+    }
+
+    .app {
+      width: 100%;
+      max-width: 680px;
+      background: #ffffff;
+      border: 1px solid #e5e5e5;
+      border-radius: 16px;
+      padding: 2.2rem 2rem;
+      box-shadow: 0 8px 30px rgba(0, 0, 0, 0.06);
+    }
+
+    h1 {
+      font-size: 1.8rem;
+      font-weight: 600;
+      letter-spacing: -0.01em;
+      color: #1a1a1a;
+      padding-bottom: 0.75rem;
+      margin-bottom: 1.2rem;
+      border-bottom: 1px solid #ebebeb;
+      user-select: none;
+    }
+
+    .subtabs { display: flex; flex-wrap: wrap; gap: 0.5rem; margin-bottom: 1.6rem; }
+
+    .subtab-btn {
+      padding: 0.5rem 1.1rem;
+      font-size: 0.95rem;
+      font-weight: 500;
+      font-family: inherit;
+      background: #ffffff;
+      border: 1px solid #e8e8e8;
+      border-radius: 8px;
+      color: #888;
+      cursor: pointer;
+      transition: all 0.2s ease;
+      white-space: nowrap;
+    }
+    .subtab-btn:hover { background: #fafafa; color: #1a1a1a; border-color: #d5d5d5; }
+    .subtab-btn.active { background: #1a1a1a; color: #ffffff; border-color: #1a1a1a; }
+
+    .top-input { display: none; gap: 0.6rem; margin-bottom: 1.4rem; flex-wrap: wrap; align-items: center; }
+    .top-input.visible { display: flex; }
+
+    .top-input input {
+      flex: 1;
+      min-width: 200px;
+      padding: 0.7rem 1rem;
+      font-size: 0.95rem;
+      font-family: inherit;
+      background: #fafafa;
+      border: 1px solid #e0e0e0;
+      border-radius: 10px;
+      outline: none;
+      color: #1a1a1a;
+      transition: all 0.2s ease;
+    }
+    .top-input input::placeholder { color: #bbb; }
+    .top-input input:focus { background: #ffffff; border-color: #1a1a1a; box-shadow: 0 0 0 3px rgba(0, 0, 0, 0.05); }
+
+    .top-input button {
+      padding: 0.7rem 1.2rem;
+      font-size: 0.9rem;
+      font-weight: 500;
+      font-family: inherit;
+      background: #1a1a1a;
+      color: #ffffff;
+      border: 1px solid #1a1a1a;
+      border-radius: 10px;
+      cursor: pointer;
+      transition: all 0.2s ease;
+      white-space: nowrap;
+    }
+    .top-input button:hover { background: #333333; }
+    .top-input button:active { transform: scale(0.97); }
+
+    .tab-panel { display: none; }
+    .tab-panel.active { display: block; }
+
+    .group-title {
+      font-size: 0.8rem;
+      font-weight: 500;
+      color: #aaa;
+      letter-spacing: 0.03em;
+      margin: 1rem 0 0.4rem 0.2rem;
+      user-select: none;
+    }
+    .group-title:first-of-type { margin-top: 0; }
+
+    .todo-list { list-style: none; display: flex; flex-direction: column; gap: 0.35rem; }
+
+    .todo-item {
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
+      padding: 0.75rem 1rem;
+      border-radius: 10px;
+      background: transparent;
+      transition: background 0.25s ease, box-shadow 0.2s ease;
+      cursor: pointer;
+    }
+    .todo-item:hover {
+      background: linear-gradient(135deg, #fafafa 0%, #f5f5f5 100%);
+      box-shadow: 0 2px 10px rgba(0, 0, 0, 0.03);
+    }
+
+    .todo-text {
+      flex: 1;
+      font-size: 1.05rem;
+      color: #1a1a1a;
+      word-break: break-word;
+      min-width: 0;
+      transition: all 0.25s ease;
+    }
+
+    .count-label {
+      font-size: 0.8rem;
+      color: #b8b8b8;
+      flex-shrink: 0;
+      min-width: 2.2rem;
+      text-align: right;
+      font-variant-numeric: tabular-nums;
+    }
+    .todo-item.completed .count-label { color: #c8c8c8; }
+
+    .todo-item input[type="checkbox"] {
+      appearance: none;
+      -webkit-appearance: none;
+      width: 1.5rem;
+      height: 1.5rem;
+      flex-shrink: 0;
+      background: #ffffff;
+      border: 1.5px solid #dcdcdc;
+      border-radius: 8px;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      transition: border-color 0.2s ease, background 0.2s ease, box-shadow 0.2s ease;
+      position: relative;
+      margin: 0;
+    }
+    .todo-item input[type="checkbox"]:hover { border-color: #b0b0b0; box-shadow: 0 0 0 3px rgba(0, 0, 0, 0.03); }
+    .todo-item input[type="checkbox"]:checked { background: #333333; border-color: #333333; }
+    .todo-item input[type="checkbox"]:checked:hover { background: #1a1a1a; border-color: #1a1a1a; }
+    .todo-item input[type="checkbox"]:checked::after {
+      content: "✓";
+      font-size: 1rem;
+      font-weight: 500;
+      color: #ffffff;
+      line-height: 1;
+      display: block;
+      text-align: center;
+      transform: translateY(-0.5px);
+    }
+
+    .todo-item.completed .todo-text .text-content {
+      text-decoration: line-through;
+      text-decoration-thickness: 1.5px;
+      text-decoration-color: #c8c8c8;
+      color: #b8b8b8;
+    }
+
+    .footer {
+      margin-top: 1.4rem;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      font-size: 0.85rem;
+      color: #999;
+      border-top: 1px solid #f2f2f2;
+      padding-top: 1.1rem;
+      flex-wrap: wrap;
+      gap: 0.8rem;
+    }
+    .footer .counter { color: #999; transition: color 0.2s ease; word-spacing: 0.25em; }
+    .footer .counter.empty { color: #c8c8c8; word-spacing: normal; }
+
+    .footer-actions { display: flex; gap: 0.5rem; flex-wrap: wrap; margin-left: auto; justify-content: flex-end; }
+
+    .tool-btn {
+      background: #ffffff;
+      border: 1px solid #e8e8e8;
+      padding: 0.45rem 1rem;
+      font-size: 0.8rem;
+      font-weight: 500;
+      font-family: inherit;
+      color: #888;
+      border-radius: 8px;
+      cursor: pointer;
+      transition: all 0.2s ease;
+      white-space: nowrap;
+    }
+    .tool-btn:hover { background: #1a1a1a; color: #ffffff; border-color: #1a1a1a; }
+    .tool-btn:active { transform: scale(0.96); }
+    .tool-btn:disabled { opacity: 0.45; cursor: not-allowed; background: #fafafa; color: #bbb; border-color: #efefef; }
+    .tool-btn:disabled:hover { background: #fafafa; color: #bbb; border-color: #efefef; transform: none; }
+
+    .toast {
+      position: fixed;
+      left: 50%;
+      bottom: 2rem;
+      transform: translateX(-50%) translateY(1rem);
+      background: #1a1a1a;
+      color: #ffffff;
+      font-size: 0.85rem;
+      padding: 0.6rem 1.2rem;
+      border-radius: 8px;
+      opacity: 0;
+      pointer-events: none;
+      transition: all 0.25s ease;
+      z-index: 100;
+      box-shadow: 0 6px 20px rgba(0, 0, 0, 0.15);
+    }
+    .toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+
+    @media (max-width: 480px) {
+      body { padding: 2rem 0.8rem 1.2rem; }
+      .app { padding: 1.5rem 1.2rem; border-radius: 14px; }
+      h1 { font-size: 1.5rem; }
+      .subtab-btn { padding: 0.45rem 0.9rem; font-size: 0.9rem; }
+      .top-input input { padding: 0.65rem 0.9rem; font-size: 0.9rem; }
+      .top-input button { padding: 0.65rem 1rem; font-size: 0.85rem; }
+      .todo-item { padding: 0.7rem 0.6rem; gap: 0.6rem; }
+      .todo-item input[type="checkbox"] { width: 1.35rem; height: 1.35rem; border-radius: 7px; }
+      .todo-text { font-size: 1rem; }
+      .count-label { font-size: 0.75rem; min-width: 2rem; }
+      .footer { flex-direction: row; align-items: center; gap: 0.6rem; }
+      .footer-actions { margin-left: auto; justify-content: flex-end; gap: 0.4rem; }
+      .tool-btn { flex: 0 0 auto; padding: 0.45rem 1rem; font-size: 0.75rem; }
+    }
+  </style>
+</head>
+<body>
+  <div class="app">
+    <h1>剑网3</h1>
+
+    <div class="subtabs">
+      <button class="subtab-btn active" data-subtab="pve">PVE</button>
+      <button class="subtab-btn" data-subtab="pvp">PVP</button>
+      <button class="subtab-btn" data-subtab="pvx">PVX</button>
+      <button class="subtab-btn" data-subtab="common">通用</button>
+    </div>
+
+    <div class="top-input visible" id="tenInputArea">
+      <input type="text" id="tenInput" placeholder="输入本周 10 人（空格/逗号分隔，可分两次填 A、B）" autocomplete="off">
+      <button id="tenApplyBtn">应用</button>
+    </div>
+
+    <div class="tab-panel active" id="panel-pve">
+      <div class="group-title">日常</div>
+      <ul class="todo-list" id="list-pve-daily"></ul>
+      <div class="group-title">周常</div>
+      <ul class="todo-list" id="list-pve-weekly"></ul>
+      <div class="footer">
+        <span id="counter-pve" class="counter empty">0 项</span>
+        <div class="footer-actions">
+          <button class="tool-btn" id="reset-pve">重置</button>
+          <button class="tool-btn reset-all-btn">重置全部</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="tab-panel" id="panel-pvp">
+      <div class="group-title">日常</div>
+      <ul class="todo-list" id="list-pvp-daily"></ul>
+      <div class="group-title">周常</div>
+      <ul class="todo-list" id="list-pvp-weekly"></ul>
+      <div class="footer">
+        <span id="counter-pvp" class="counter empty">0 项</span>
+        <div class="footer-actions">
+          <button class="tool-btn" id="reset-pvp">重置</button>
+          <button class="tool-btn reset-all-btn">重置全部</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="tab-panel" id="panel-pvx">
+      <div class="group-title">日常</div>
+      <ul class="todo-list" id="list-pvx-daily"></ul>
+      <div class="group-title">周常</div>
+      <ul class="todo-list" id="list-pvx-weekly"></ul>
+      <div class="footer">
+        <span id="counter-pvx" class="counter empty">0 项</span>
+        <div class="footer-actions">
+          <button class="tool-btn" id="reset-pvx">重置</button>
+          <button class="tool-btn reset-all-btn">重置全部</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="tab-panel" id="panel-common">
+      <div class="group-title">日常</div>
+      <ul class="todo-list" id="list-common-daily"></ul>
+      <div class="group-title">周常</div>
+      <ul class="todo-list" id="list-common-weekly"></ul>
+      <div class="footer">
+        <span id="counter-common" class="counter empty">0 项</span>
+        <div class="footer-actions">
+          <button class="tool-btn" id="reset-common">重置</button>
+          <button class="tool-btn reset-all-btn">重置全部</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="toast" id="toast"></div>
+
+  <script>
+    (function() {
+      const DEFAULT_ITEMS = {
+        pve: {
+          daily: [
+            { text: '大战' }
+          ],
+          weekly: [
+            { text: '10人 · 洛阳之战', target: 2 },
+            { text: '10人 · A', target: 2 },
+            { text: '10人 · B', target: 2 }
+          ]
+        },
+        pvp: {
+          daily: [
+            { text: '矿车' },
+            { text: '跑商', target: 3 }
+          ],
+          weekly: [
+            { text: '大跑商' },
+            { text: '帮会联赛' },
+            { text: '小攻防', target: 2 },
+            { text: '大攻防', target: 4 },
+            { text: '阵营周常' }
+          ]
+        },
+        pvx: {
+          daily: [
+            { text: '送信' },
+            { text: '私宅日常' },
+            { text: '大掌柜' },
+            { text: '调香师' },
+            { text: '跟宠周游' },
+            { text: '许愿树' }
+          ],
+          weekly: [
+            { text: '家园BOSS' }
+          ]
+        },
+        common: {
+          daily: [
+            { text: '茶馆' },
+            { text: '名望', target: 3 },
+            { text: '帮会食堂' }
+          ],
+          weekly: [
+            { text: '世界 boss', target: 2 },
+            { text: '帮会订单' }
+          ]
+        }
+      };
+
+      const STORAGE_PREFIX = 'jx3_';
+      const LAST_RESET_KEY = 'jx3_last_reset'; // 全局：记录上次周常自动重置的“周一日期”
+
+      const CATEGORIES = [
+        { key: 'pve', dailyListId: 'list-pve-daily', weeklyListId: 'list-pve-weekly', counterId: 'counter-pve', resetId: 'reset-pve' },
+        { key: 'pvp', dailyListId: 'list-pvp-daily', weeklyListId: 'list-pvp-weekly', counterId: 'counter-pvp', resetId: 'reset-pvp' },
+        { key: 'pvx', dailyListId: 'list-pvx-daily', weeklyListId: 'list-pvx-weekly', counterId: 'counter-pvx', resetId: 'reset-pvx' },
+        { key: 'common', dailyListId: 'list-common-daily', weeklyListId: 'list-common-weekly', counterId: 'counter-common', resetId: 'reset-common' }
+      ];
+
+      // 取“本周一”的日期字符串，如 2026-11-02
+      function getMondayKey(date) {
+        const d = new Date(date);
+        d.setHours(0, 0, 0, 0);
+        const day = d.getDay(); // 0 = 周日, 1 = 周一
+        const diff = day === 0 ? -6 : 1 - day; // 周日回退到本周一
+        d.setDate(d.getDate() + diff);
+        const y = d.getFullYear();
+        const m = String(d.getMonth() + 1).padStart(2, '0');
+        const dd = String(d.getDate()).padStart(2, '0');
+        return `${y}-${m}-${dd}`;
+      }
+
+      // 取“今天”的日期字符串，如 2026-11-06
+      function getDateKey(date) {
+        const d = new Date(date);
+        const y = d.getFullYear();
+        const m = String(d.getMonth() + 1).padStart(2, '0');
+        const dd = String(d.getDate()).padStart(2, '0');
+        return `${y}-${m}-${dd}`;
+      }
+
+      function showToast(message) {
+        const toast = document.getElementById('toast');
+        toast.textContent = message;
+        toast.classList.add('show');
+        if (toast._timer) clearTimeout(toast._timer);
+        toast._timer = setTimeout(() => {
+          toast.classList.remove('show');
+        }, 1600);
+      }
+
+      const instances = {};
+
+      function buildItem(def) {
+        const target = def.target && def.target > 1 ? def.target : 1;
+        return {
+          text: def.text || '',
+          target,
+          count: 0,
+          completed: false
+        };
+      }
+
+      function createCategory(config) {
+        const { key, dailyListId, weeklyListId, counterId, resetId } = config;
+        const storageKey = STORAGE_PREFIX + key;
+        const LAST_DAILY_KEY = STORAGE_PREFIX + key + '_last_daily'; // 分类：记录上次日常自动重置的日期
+
+        const dailyListEl = document.getElementById(dailyListId);
+        const weeklyListEl = document.getElementById(weeklyListId);
+        const counterEl = document.getElementById(counterId);
+        const resetBtn = document.getElementById(resetId);
+
+        let items = { daily: [], weekly: [] };
+
+        function buildDefaultItems() {
+          return {
+            daily: DEFAULT_ITEMS[key].daily.map(buildItem),
+            weekly: DEFAULT_ITEMS[key].weekly.map(buildItem)
+          };
+        }
+
+        // 按“索引”合并默认结构与旧数据：
+        // - text 优先保留旧数据里的实际名称（例如手动输入的 10 人副本名）
+        // - target 优先保留旧数据（>1 才生效）
+        // - count / completed 保留旧数据
+        function normalizeItems(parsed) {
+          const def = DEFAULT_ITEMS[key];
+
+          const buildGroup = (defGroup, oldGroup) => {
+            const oldList = Array.isArray(oldGroup) ? oldGroup : [];
+            return defGroup.map((d, i) => {
+              const base = buildItem(d);
+              const old = oldList[i] || {};
+              return {
+                ...base,
+                text: typeof old.text === 'string' && old.text ? old.text : base.text,
+                target: typeof old.target === 'number' && old.target > 1 ? old.target : base.target,
+                count: typeof old.count === 'number' ? old.count : 0,
+                completed: !!old.completed
+              };
+            });
+          };
+
+          return {
+            daily: buildGroup(def.daily, parsed.daily),
+            weekly: buildGroup(def.weekly, parsed.weekly)
+          };
+        }
+
+        function isStorageValid(parsed) {
+          if (!parsed || typeof parsed !== 'object') return false;
+          if (!Array.isArray(parsed.daily) || !Array.isArray(parsed.weekly)) return false;
+          return true;
+        }
+
+        function loadFromStorage() {
+          try {
+            const raw = localStorage.getItem(storageKey);
+            if (raw) {
+              const parsed = JSON.parse(raw);
+              if (isStorageValid(parsed)) {
+                items = normalizeItems(parsed);
+                saveToStorage();
+                return;
+              }
+            }
+          } catch (err) {
+            // 回退默认
+          }
+          items = buildDefaultItems();
+          saveToStorage();
+        }
+
+        function saveToStorage() {
+          try {
+            localStorage.setItem(storageKey, JSON.stringify(items));
+          } catch (err) {
+            // 静默
+          }
+        }
+
+        // 自动重置：
+        // - 日常：跨天清勾选/计数，保留文字
+        // - 周常：仅“已有历史周一记录且跨周”时恢复默认（含 10 人名称）
+        // 首次访问、同一日/同一周内刷新网页都不会改动任何状态。
+        function maybeAutoReset() {
+          const today = getDateKey(new Date());
+          const thisMonday = getMondayKey(new Date());
+
+          let lastDaily = null;
+          let lastMonday = null;
+          try {
+            lastDaily = localStorage.getItem(LAST_DAILY_KEY);
+            lastMonday = localStorage.getItem(LAST_RESET_KEY);
+          } catch (err) {
+            return;
+          }
+
+          // 读取当前存储；没有有效数据时才用默认兜底
+          let data = null;
+          let hasStored = false;
+          try {
+            const raw = localStorage.getItem(storageKey);
+            if (raw) {
+              const parsed = JSON.parse(raw);
+              if (isStorageValid(parsed)) {
+                data = normalizeItems(parsed);
+                hasStored = true;
+              }
+            }
+          } catch (err) {}
+          if (!data) data = buildDefaultItems();
+
+          let changed = false;
+
+          // 日常：跨天清勾选/计数（保留 text）
+          if (lastDaily !== today) {
+            data.daily = data.daily.map(item => ({ ...item, count: 0, completed: false }));
+            try { localStorage.setItem(LAST_DAILY_KEY, today); } catch (err) {}
+            changed = true;
+          }
+
+          // 周常：只有“已有历史周一记录且跨周”才恢复默认
+          if (lastMonday && lastMonday !== thisMonday) {
+            data.weekly = buildDefaultItems().weekly;
+            changed = true;
+          }
+
+          // 记录本周一（首次访问也记录，但不改 weekly）
+          if (!lastMonday || lastMonday !== thisMonday) {
+            try { localStorage.setItem(LAST_RESET_KEY, thisMonday); } catch (err) {}
+          }
+
+          // 只有真的变了才写回；首次访问无存储且日常未变时不写，避免把兜底默认覆盖存储
+          if (changed) {
+            try { localStorage.setItem(storageKey, JSON.stringify(data)); } catch (err) {}
+          }
+        }
+
+        function getAllItems() {
+          return [...items.daily, ...items.weekly];
+        }
+
+        function updateCounter() {
+          const all = getAllItems();
+          const total = all.length;
+          const completed = all.filter(t => t.completed).length;
+          if (total === 0) {
+            counterEl.textContent = '0 项';
+            counterEl.classList.add('empty');
+          } else {
+            counterEl.textContent = `${completed} / ${total}`;
+            counterEl.classList.remove('empty');
+          }
+          resetBtn.disabled = completed === 0;
+        }
+
+        function renderGroup(listEl, groupItems, groupKey) {
+          listEl.innerHTML = '';
+
+          groupItems.forEach((item, index) => {
+            const li = document.createElement('li');
+            li.className = 'todo-item';
+            if (item.completed) li.classList.add('completed');
+            li.dataset.group = groupKey;
+            li.dataset.index = index;
+
+            const textSpan = document.createElement('span');
+            textSpan.className = 'todo-text';
+            const contentSpan = document.createElement('span');
+            contentSpan.className = 'text-content';
+            contentSpan.textContent = item.text;
+            textSpan.appendChild(contentSpan);
+            li.appendChild(textSpan);
+
+            if (item.target > 1) {
+              const countSpan = document.createElement('span');
+              countSpan.className = 'count-label';
+              countSpan.textContent = `${item.count}/${item.target}`;
+              li.appendChild(countSpan);
+            }
+
+            const checkbox = document.createElement('input');
+            checkbox.type = 'checkbox';
+            checkbox.checked = item.completed;
+            checkbox.addEventListener('change', (e) => {
+              e.stopPropagation();
+              handleClick(groupKey, index);
+            });
+
+            li.appendChild(checkbox);
+
+            li.addEventListener('click', (e) => {
+              if (e.target.closest('input[type="checkbox"]')) return;
+              handleClick(groupKey, index);
+            });
+
+            listEl.appendChild(li);
+          });
+        }
+
+        function render() {
+          renderGroup(dailyListEl, items.daily, 'daily');
+          renderGroup(weeklyListEl, items.weekly, 'weekly');
+          updateCounter();
+        }
+
+        function handleClick(groupKey, index) {
+          const item = items[groupKey] && items[groupKey][index];
+          if (!item) return;
+
+          if (item.target > 1) {
+            if (item.completed) {
+              item.count = 0;
+              item.completed = false;
+            } else {
+              item.count += 1;
+              if (item.count >= item.target) {
+                item.count = item.target;
+                item.completed = true;
+              }
+            }
+          } else {
+            item.completed = !item.completed;
+            item.count = item.completed ? 1 : 0;
+          }
+
+          saveToStorage();
+          render();
+        }
+
+        // 手动“重置”：只清勾选/计数，不恢复 10 人名称。
+        function resetCategory(silent) {
+          const all = getAllItems();
+          const completedCount = all.filter(t => t.completed).length;
+          if (completedCount === 0) return 0;
+          items = {
+            daily: items.daily.map(item => ({ ...item, count: 0, completed: false })),
+            weekly: items.weekly.map(item => ({ ...item, count: 0, completed: false }))
+          };
+          saveToStorage();
+          render();
+          if (!silent) {
+            showToast(`已重置 ${completedCount} 项勾选`);
+          }
+          return completedCount;
+        }
+
+        // 十人周常输入：按空位填充 weekly[1]、weekly[2]。
+        // 支持分两次输入（第一次填 A、第二次填 B），也可一次输入两个。
+        // 空位判定：文本为空，或仍是占位符 "10人 · A" / "10人 · B"。
+        function applyReplacements(texts) {
+          if (key !== 'pve' || !Array.isArray(texts)) return;
+          const parts = texts.map(s => (s || '').trim()).filter(Boolean);
+          if (parts.length === 0) return;
+
+          const slots = [1, 2]; // weekly 索引：第 2、3 条
+          const isPlaceholder = (text) => {
+            if (!text) return true;
+            return /^10人 · (A|B)$/.test(text);
+          };
+
+          let slotIdx = 0;
+          for (const p of parts) {
+            let placed = false;
+            while (slotIdx < slots.length) {
+              const idx = slots[slotIdx];
+              const cur = items.weekly[idx];
+              if (cur && isPlaceholder(cur.text)) {
+                cur.text = `10人 · ${p}`;
+                slotIdx++;
+                placed = true;
+                break;
+              }
+              slotIdx++;
+            }
+            if (!placed) {
+              // 没有空位了，从头覆盖
+              const idx = slots[slotIdx % slots.length];
+              if (items.weekly[idx]) items.weekly[idx].text = `10人 · ${p}`;
+              slotIdx++;
+            }
+          }
+
+          saveToStorage();
+          render();
+        }
+
+        window.addEventListener('storage', (e) => {
+          if (e.key === storageKey) {
+            loadFromStorage();
+            render();
+          }
+        });
+
+        resetBtn.addEventListener('click', () => resetCategory(false));
+
+        // 初始化顺序：先按天/周判断重置，再加载存储、渲染
+        maybeAutoReset();
+        loadFromStorage();
+        render();
+
+        return {
+          reset: resetCategory,
+          refresh: () => {
+            maybeAutoReset();
+            loadFromStorage();
+            render();
+          },
+          applyReplacements
+        };
+      }
+
+      CATEGORIES.forEach(cfg => {
+        instances[cfg.key] = createCategory(cfg);
+      });
+
+      const tenInput = document.getElementById('tenInput');
+      const tenInputArea = document.getElementById('tenInputArea');
+      const tenApplyBtn = document.getElementById('tenApplyBtn');
+
+      // 输入框始终为空，不回填
+      function initTenInput() {
+        tenInput.value = '';
+      }
+
+      function applyTenInput() {
+        const parts = tenInput.value
+          .split(/[\s,，]+/)
+          .map(s => s.trim())
+          .filter(s => s !== '');
+        instances.pve.applyReplacements(parts);
+        tenInput.value = ''; // 提交后清空
+        if (parts.length > 0) {
+          showToast('10人周常已更新');
+        } else {
+          showToast('请输入 10 人副本名称');
+        }
+      }
+
+      tenApplyBtn.addEventListener('click', applyTenInput);
+
+      tenInput.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter') {
+          e.preventDefault();
+          applyTenInput();
+        }
+      });
+
+      const subtabBtns = document.querySelectorAll('.subtab-btn');
+      const panels = {
+        pve: document.getElementById('panel-pve'),
+        pvp: document.getElementById('panel-pvp'),
+        pvx: document.getElementById('panel-pvx'),
+        common: document.getElementById('panel-common')
+      };
+
+      let currentSubtab = 'pve';
+
+      function switchSubtab(target) {
+        if (target === currentSubtab) return;
+        currentSubtab = target;
+
+        subtabBtns.forEach(btn => {
+          btn.classList.toggle('active', btn.dataset.subtab === target);
+        });
+
+        Object.keys(panels).forEach(key => {
+          panels[key].classList.toggle('active', key === target);
+        });
+
+        tenInputArea.classList.toggle('visible', target === 'pve');
+
+        if (target === 'pve') {
+          initTenInput(); // 切回 PVE 时输入框也为空
+        }
+      }
+
+      subtabBtns.forEach(btn => {
+        btn.addEventListener('click', () => {
+          switchSubtab(btn.dataset.subtab);
+        });
+      });
+
+      initTenInput();
+
+      document.querySelectorAll('.reset-all-btn').forEach(btn => {
+        btn.addEventListener('click', () => {
+          let totalReset = 0;
+          Object.keys(instances).forEach(key => {
+            totalReset += instances[key].reset(true);
+          });
+          if (totalReset > 0) {
+            showToast(`已重置全部 ${totalReset} 项勾选`);
+          } else {
+            showToast('没有需要重置的勾选');
+          }
+        });
+      });
+    })();
+  </script>
+</body>
+</html>
