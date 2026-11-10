@@ -259,7 +259,7 @@
     .report-section th,
     .report-section td {
       border: 1px solid #eee;
-      padding: 0.25rem 0.15rem;
+      padding: 0.25rem 0.08rem;
       text-align: center;
       vertical-align: middle;
       line-height: 1.3;
@@ -272,15 +272,15 @@
       color: #888;
       font-size: 0.64rem;
     }
-    /* 第一列事项名收窄，其余 7 列均分 */
+    /* 第一列事项名 28%，其余 7 列各 10.28%，打钩列更窄 */
     .report-section th:first-child,
     .report-section td:first-child {
-      width: 22%;
+      width: 28%;
       min-width: 0;
     }
     .report-section th:not(:first-child),
     .report-section td:not(:first-child) {
-      width: 11.14%;
+      width: 10.28%;
     }
     .report-section td.item-name {
       text-align: left;
@@ -388,7 +388,7 @@
 
     <div class="tab-panel" id="panel-report">
       <div class="weekly-report-header">
-        <span class="group-title" style="margin:0;">本周记录</span>
+        <span class="group-title" style="margin:0;" id="weeklyReportTitle">本周记录</span>
         <button class="tool-btn" id="copyReportBtn">复制表格</button>
       </div>
       <div class="weekly-report-body" id="weeklyReportBody"></div>
@@ -538,9 +538,12 @@
             return defGroup.map((d, i) => {
               const base = buildItem(d);
               const old = oldList[i] || {};
+              const oldText = typeof old.text === 'string' && old.text ? old.text : base.text;
+              // PVX 第 5 项（索引 4）强制用默认“宠物出行”
+              const finalText = (key === 'pvx' && i === 4) ? base.text : oldText;
               return {
                 ...base,
-                text: typeof old.text === 'string' && old.text ? old.text : base.text,
+                text: finalText,
                 target: typeof old.target === 'number' && old.target > 1 ? old.target : base.target,
                 count: typeof old.count === 'number' ? old.count : 0,
                 completed: !!old.completed
@@ -955,8 +958,16 @@
           d.setDate(monday.getDate() + i);
           days.push({
             date: getDateKey(d),
-            label: ['周一', '周二', '周三', '周四', '周五', '周六', '周日'][i]
+            label: ['一', '二', '三', '四', '五', '六', '日'][i]
           });
+        }
+
+        // 标题显示本周日期范围：本周记录（11/10-11/16）
+        const titleEl = document.getElementById('weeklyReportTitle');
+        if (titleEl && days.length === 7) {
+          const start = days[0].date.slice(5).replace('-', '/');
+          const end = days[6].date.slice(5).replace('-', '/');
+          titleEl.textContent = `本周记录（${start}-${end}）`;
         }
 
         const categories = [
@@ -1003,7 +1014,7 @@
           html += `<div class="report-section"><div class="report-section-title">${cat.label}</div>`;
           html += '<table><thead><tr><th style="text-align:left;">事项</th>';
           days.forEach(d => {
-            html += `<th>${d.label}<br>${d.date.slice(5)}</th>`;
+            html += `<th>${d.label}</th>`;
           });
           html += '</tr></thead><tbody>';
 
