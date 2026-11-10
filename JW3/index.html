@@ -172,6 +172,13 @@
       text-align: center;
       transform: translateY(-0.5px);
     }
+    .todo-item input[type="checkbox"]:disabled {
+      cursor: not-allowed;
+      background: #f0f0f0;
+      border-color: #bdbdbd;
+    }
+    .todo-item.is-locked { opacity: 0.4; cursor: not-allowed; }
+    .todo-item.is-locked:hover { background: transparent; box-shadow: none; }
 
     .todo-item.completed .todo-text .text-content {
       text-decoration: line-through;
@@ -233,7 +240,6 @@
     }
     .toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
 
-    /* 周报：小字、固定布局、不横向滚动 */
     .weekly-report-header {
       display: flex;
       justify-content: space-between;
@@ -272,16 +278,10 @@
       color: #888;
       font-size: 0.64rem;
     }
-    /* 第一列事项名 28%，其余 7 列各 10.28%，打钩列更窄 */
     .report-section th:first-child,
-    .report-section td:first-child {
-      width: 28%;
-      min-width: 0;
-    }
+    .report-section td:first-child { width: 28%; min-width: 0; }
     .report-section th:not(:first-child),
-    .report-section td:not(:first-child) {
-      width: 10.28%;
-    }
+    .report-section td:not(:first-child) { width: 10.28%; }
     .report-section td.item-name {
       text-align: left;
       font-weight: 500;
@@ -292,6 +292,7 @@
     .report-section td.unchecked { color: #ddd; }
     .report-section td.legacy { color: #999; font-size: 0.6rem; }
     .report-section .empty-cell { color: #ccc; }
+    .report-section td.locked-cell { color: #ddd; background: #fcfcfc; }
 
     @media (max-width: 480px) {
       body { padding: 2rem 0.8rem 1.2rem; }
@@ -401,9 +402,7 @@
     (function() {
       const DEFAULT_ITEMS = {
         pve: {
-          daily: [
-            { text: '大战' }
-          ],
+          daily: [{ text: '大战' }],
           weekly: [
             { text: '10人 · 洛阳之战', target: 2 },
             { text: '10人 · A', target: 2 },
@@ -419,8 +418,8 @@
             { text: '大跑商' },
             { text: '帮会联赛' },
             { text: '小攻防', target: 2 },
-            { text: '大攻防', target: 4 },
-            { text: '阵营周常' }
+            { text: '大攻防', target: 2 },
+            { text: '阵营周常', target: 2 }
           ]
         },
         pvx: {
@@ -432,9 +431,7 @@
             { text: '宠物出行' },
             { text: '许愿树' }
           ],
-          weekly: [
-            { text: '家园BOSS' }
-          ]
+          weekly: [{ text: '家园BOSS' }]
         },
         common: {
           daily: [
@@ -443,18 +440,26 @@
             { text: '帮会食堂' }
           ],
           weekly: [
-            { text: '世界 boss', target: 2 },
-            { text: '帮会订单' }
+            { text: '世界 boss', target: 1 },
+            { text: '帮会订单', target: 1 }
           ]
         }
       };
 
-      // 只有这些多目标条目在周报里显示次数，其余多目标有进度即打钩
       const COUNT_ITEMS = ['跑商', '名望'];
 
+      const WEEKLY_SCHEDULE = {
+        '小攻防': [2, 4],
+        '大攻防': [6, 0],
+        '大跑商': [1],
+        '帮会联赛': [3],
+        '世界 boss': [3, 5],
+        '阵营周常': [6, 0]
+      };
+
       const STORAGE_PREFIX = 'jx3_';
-      const LAST_RESET_KEY = 'jx3_last_reset'; // 全局：记录上次周常自动重置的“周一日期”
-      const HISTORY_KEY = 'jx3_history';       // 历史快照：按日期存各类别逐项状态
+      const LAST_RESET_KEY = 'jx3_last_reset';
+      const HISTORY_KEY = 'jx3_history';
 
       const CATEGORIES = [
         { key: 'pve', dailyListId: 'list-pve-daily', weeklyListId: 'list-pve-weekly', counterId: 'counter-pve', resetId: 'reset-pve' },
@@ -463,12 +468,11 @@
         { key: 'common', dailyListId: 'list-common-daily', weeklyListId: 'list-common-weekly', counterId: 'counter-common', resetId: 'reset-common' }
       ];
 
-      // 取“本周一”的日期字符串，如 2026-11-02
       function getMondayKey(date) {
         const d = new Date(date);
         d.setHours(0, 0, 0, 0);
-        const day = d.getDay(); // 0 = 周日, 1 = 周一
-        const diff = day === 0 ? -6 : 1 - day; // 周日回退到本周一
+        const day = d.getDay();
+        const diff = day === 0 ? -6 : 1 - day;
         d.setDate(d.getDate() + diff);
         const y = d.getFullYear();
         const m = String(d.getMonth() + 1).padStart(2, '0');
@@ -476,7 +480,6 @@
         return `${y}-${m}-${dd}`;
       }
 
-      // 取“今天”的日期字符串，如 2026-11-06
       function getDateKey(date) {
         const d = new Date(date);
         const y = d.getFullYear();
@@ -490,27 +493,28 @@
         toast.textContent = message;
         toast.classList.add('show');
         if (toast._timer) clearTimeout(toast._timer);
-        toast._timer = setTimeout(() => {
-          toast.classList.remove('show');
-        }, 1600);
+        toast._timer = setTimeout(() => toast.classList.remove('show'), 1600);
+      }
+
+      // 是否已到可做日：有日程的周常，只有可做日当天允许点击
+      function isClickableNow(item) {
+        const schedule = WEEKLY_SCHEDULE[item.text];
+        if (!schedule) return true;
+        const todayWd = new Date().getDay();
+        return schedule.includes(todayWd);
       }
 
       const instances = {};
 
       function buildItem(def) {
         const target = def.target && def.target > 1 ? def.target : 1;
-        return {
-          text: def.text || '',
-          target,
-          count: 0,
-          completed: false
-        };
+        return { text: def.text || '', target, dailyState: {}, completed: false, count: 0 };
       }
 
       function createCategory(config) {
         const { key, dailyListId, weeklyListId, counterId, resetId } = config;
         const storageKey = STORAGE_PREFIX + key;
-        const LAST_DAILY_KEY = STORAGE_PREFIX + key + '_last_daily'; // 分类：记录上次日常自动重置的日期
+        const LAST_DAILY_KEY = STORAGE_PREFIX + key + '_last_daily';
 
         const dailyListEl = document.getElementById(dailyListId);
         const weeklyListEl = document.getElementById(weeklyListId);
@@ -526,31 +530,35 @@
           };
         }
 
-        // 按“索引”合并默认结构与旧数据：
-        // - text 优先保留旧数据里的实际名称（不做旧文本迁移）
-        // - target 优先保留旧数据（>1 才生效）
-        // - count / completed 保留旧数据
         function normalizeItems(parsed) {
           const def = DEFAULT_ITEMS[key];
-
           const buildGroup = (defGroup, oldGroup) => {
             const oldList = Array.isArray(oldGroup) ? oldGroup : [];
             return defGroup.map((d, i) => {
               const base = buildItem(d);
               const old = oldList[i] || {};
               const oldText = typeof old.text === 'string' && old.text ? old.text : base.text;
-              // PVX 第 5 项（索引 4）强制用默认“宠物出行”
               const finalText = (key === 'pvx' && i === 4) ? base.text : oldText;
+
+              let dailyState = {};
+              if (old.dailyState && typeof old.dailyState === 'object') {
+                dailyState = old.dailyState;
+              } else if (typeof old.count === 'number' || typeof old.completed === 'boolean') {
+                const today = getDateKey(new Date());
+                dailyState[today] = {
+                  count: typeof old.count === 'number' ? old.count : (old.completed ? base.target : 0),
+                  completed: !!old.completed
+                };
+              }
+
               return {
                 ...base,
                 text: finalText,
                 target: typeof old.target === 'number' && old.target > 1 ? old.target : base.target,
-                count: typeof old.count === 'number' ? old.count : 0,
-                completed: !!old.completed
+                dailyState
               };
             });
           };
-
           return {
             daily: buildGroup(def.daily, parsed.daily),
             weekly: buildGroup(def.weekly, parsed.weekly)
@@ -574,9 +582,7 @@
                 return;
               }
             }
-          } catch (err) {
-            // 回退默认
-          }
+          } catch (err) {}
           items = buildDefaultItems();
           saveToStorage();
         }
@@ -585,77 +591,70 @@
           try {
             localStorage.setItem(storageKey, JSON.stringify(items));
             recordHistorySnapshot();
-          } catch (err) {
-            // 静默
-          }
+          } catch (err) {}
         }
 
-        // 把当天各类别逐项状态写入历史（带 target/count）
+        function getTodayState(item) {
+          const today = getDateKey(new Date());
+          if (!item.dailyState) item.dailyState = {};
+          if (!item.dailyState[today]) item.dailyState[today] = { count: 0, completed: false };
+          return item.dailyState[today];
+        }
+
         function recordHistorySnapshot() {
           try {
             const today = getDateKey(new Date());
             const raw = localStorage.getItem(HISTORY_KEY);
             const history = raw ? JSON.parse(raw) : {};
             if (!history[today]) history[today] = {};
-
-            const snapshot = {
-              daily: items.daily.map(it => ({ text: it.text, completed: !!it.completed, target: it.target, count: it.count })),
-              weekly: items.weekly.map(it => ({ text: it.text, completed: !!it.completed, target: it.target, count: it.count }))
-            };
-
-            history[today][key] = snapshot;
+            const toSnapshot = (list) => list.map(it => {
+              const st = getTodayState(it);
+              return { text: it.text, target: it.target, count: st.count, completed: st.completed };
+            });
+            history[today][key] = { daily: toSnapshot(items.daily), weekly: toSnapshot(items.weekly) };
             localStorage.setItem(HISTORY_KEY, JSON.stringify(history));
             window.dispatchEvent(new CustomEvent('jx3-history-updated'));
           } catch (err) {}
         }
 
-        // 自动重置：
-        // - 日常：跨天清勾选/计数，保留文字
-        // - 周常：仅“已有历史周一记录且跨周”时恢复默认（含 10 人名称）
-        // 首次访问、同一日/同一周内刷新网页都不会改动任何状态。
         function maybeAutoReset() {
           const today = getDateKey(new Date());
           const thisMonday = getMondayKey(new Date());
-
           let lastDaily = null;
           let lastMonday = null;
           try {
             lastDaily = localStorage.getItem(LAST_DAILY_KEY);
             lastMonday = localStorage.getItem(LAST_RESET_KEY);
-          } catch (err) {
-            return;
-          }
+          } catch (err) { return; }
 
           let data = null;
-          let hasStored = false;
           try {
             const raw = localStorage.getItem(storageKey);
             if (raw) {
               const parsed = JSON.parse(raw);
-              if (isStorageValid(parsed)) {
-                data = normalizeItems(parsed);
-                hasStored = true;
-              }
+              if (isStorageValid(parsed)) data = normalizeItems(parsed);
             }
           } catch (err) {}
           if (!data) data = buildDefaultItems();
 
           let changed = false;
 
-          // 日常：跨天清勾选/计数（保留 text）
+          // 每天：只清空日常（单目标勾选；多目标日常按天独立，不动）
           if (lastDaily !== today) {
-            data.daily = data.daily.map(item => ({ ...item, count: 0, completed: false }));
+            data.daily = data.daily.map(item => {
+              if (item.target > 1) return item;
+              return { ...item, completed: false, count: 0 };
+            });
             try { localStorage.setItem(LAST_DAILY_KEY, today); } catch (err) {}
             changed = true;
           }
 
-          // 周常：只有“已有历史周一记录且跨周”才恢复默认
+          // 跨周：所有分类的所有条目全部恢复默认
           if (lastMonday && lastMonday !== thisMonday) {
-            data.weekly = buildDefaultItems().weekly;
+            data = buildDefaultItems();
             changed = true;
           }
 
-          // 记录本周一（首次访问也记录，但不改 weekly）
           if (!lastMonday || lastMonday !== thisMonday) {
             try { localStorage.setItem(LAST_RESET_KEY, thisMonday); } catch (err) {}
           }
@@ -667,10 +666,11 @@
               const rawH = localStorage.getItem(HISTORY_KEY);
               const history = rawH ? JSON.parse(rawH) : {};
               if (!history[todayKey]) history[todayKey] = {};
-              history[todayKey][key] = {
-                daily: data.daily.map(it => ({ text: it.text, completed: !!it.completed, target: it.target, count: it.count })),
-                weekly: data.weekly.map(it => ({ text: it.text, completed: !!it.completed, target: it.target, count: it.count }))
-              };
+              const toSnapshot = (list) => list.map(it => {
+                const st = (it.dailyState && it.dailyState[todayKey]) || { count: 0, completed: false };
+                return { text: it.text, target: it.target, count: st.count, completed: st.completed };
+              });
+              history[todayKey][key] = { daily: toSnapshot(data.daily), weekly: toSnapshot(data.weekly) };
               localStorage.setItem(HISTORY_KEY, JSON.stringify(history));
               window.dispatchEvent(new CustomEvent('jx3-history-updated'));
             } catch (err) {}
@@ -684,7 +684,7 @@
         function updateCounter() {
           const all = getAllItems();
           const total = all.length;
-          const completed = all.filter(t => t.completed).length;
+          const completed = all.filter(t => getTodayState(t).completed).length;
           if (total === 0) {
             counterEl.textContent = '0 项';
             counterEl.classList.add('empty');
@@ -697,11 +697,16 @@
 
         function renderGroup(listEl, groupItems, groupKey) {
           listEl.innerHTML = '';
-
           groupItems.forEach((item, index) => {
             const li = document.createElement('li');
             li.className = 'todo-item';
-            if (item.completed) li.classList.add('completed');
+            const isMulti = item.target > 1;
+            const todayState = getTodayState(item);
+            const completed = todayState.completed;
+            const clickable = isClickableNow(item);
+
+            if (completed) li.classList.add('completed');
+            if (!clickable) li.classList.add('is-locked');
             li.dataset.group = groupKey;
             li.dataset.index = index;
 
@@ -713,25 +718,29 @@
             textSpan.appendChild(contentSpan);
             li.appendChild(textSpan);
 
-            if (item.target > 1) {
+            if (isMulti) {
               const countSpan = document.createElement('span');
               countSpan.className = 'count-label';
-              countSpan.textContent = `${item.count}/${item.target}`;
+              countSpan.textContent = `${todayState.count}/${item.target}`;
               li.appendChild(countSpan);
             }
 
             const checkbox = document.createElement('input');
             checkbox.type = 'checkbox';
-            checkbox.checked = item.completed;
+            checkbox.checked = completed;
+            checkbox.disabled = !clickable;
             checkbox.addEventListener('change', (e) => {
               e.stopPropagation();
               handleClick(groupKey, index);
             });
-
             li.appendChild(checkbox);
 
             li.addEventListener('click', (e) => {
               if (e.target.closest('input[type="checkbox"]')) return;
+              if (!clickable) {
+                showToast('未到可做日');
+                return;
+              }
               handleClick(groupKey, index);
             });
 
@@ -748,56 +757,53 @@
         function handleClick(groupKey, index) {
           const item = items[groupKey] && items[groupKey][index];
           if (!item) return;
-
+          if (!isClickableNow(item)) {
+            showToast('未到可做日');
+            return;
+          }
+          const st = getTodayState(item);
           if (item.target > 1) {
-            if (item.completed) {
-              item.count = 0;
-              item.completed = false;
+            if (st.completed) {
+              st.count = 0;
+              st.completed = false;
             } else {
-              item.count += 1;
-              if (item.count >= item.target) {
-                item.count = item.target;
-                item.completed = true;
+              st.count += 1;
+              if (st.count >= item.target) {
+                st.count = item.target;
+                st.completed = true;
               }
             }
           } else {
-            item.completed = !item.completed;
-            item.count = item.completed ? 1 : 0;
+            st.completed = !st.completed;
+            st.count = st.completed ? 1 : 0;
           }
-
           saveToStorage();
           render();
         }
 
-        // 手动“重置”：只清勾选/计数，不恢复 10 人名称。
         function resetCategory(silent) {
-          const all = getAllItems();
-          const completedCount = all.filter(t => t.completed).length;
+          const today = getDateKey(new Date());
+          let completedCount = 0;
+          const resetList = (list) => list.map(item => {
+            const st = item.dailyState && item.dailyState[today];
+            if (st && st.completed) completedCount++;
+            return { ...item, dailyState: { ...(item.dailyState || {}), [today]: { count: 0, completed: false } } };
+          });
+          items.daily = resetList(items.daily);
+          items.weekly = resetList(items.weekly);
           if (completedCount === 0) return 0;
-          items = {
-            daily: items.daily.map(item => ({ ...item, count: 0, completed: false })),
-            weekly: items.weekly.map(item => ({ ...item, count: 0, completed: false }))
-          };
           saveToStorage();
           render();
-          if (!silent) {
-            showToast(`已重置 ${completedCount} 项勾选`);
-          }
+          if (!silent) showToast(`已重置 ${completedCount} 项勾选`);
           return completedCount;
         }
 
-        // 十人周常输入：按空位填充 weekly[1]、weekly[2]。
         function applyReplacements(texts) {
           if (key !== 'pve' || !Array.isArray(texts)) return;
           const parts = texts.map(s => (s || '').trim()).filter(Boolean);
           if (parts.length === 0) return;
-
           const slots = [1, 2];
-          const isPlaceholder = (text) => {
-            if (!text) return true;
-            return /^10人 · (A|B)$/.test(text);
-          };
-
+          const isPlaceholder = (text) => !text || /^10人 · (A|B)$/.test(text);
           let slotIdx = 0;
           for (const p of parts) {
             let placed = false;
@@ -818,7 +824,6 @@
               slotIdx++;
             }
           }
-
           saveToStorage();
           render();
         }
@@ -838,48 +843,29 @@
 
         return {
           reset: resetCategory,
-          refresh: () => {
-            maybeAutoReset();
-            loadFromStorage();
-            render();
-          },
+          refresh: () => { maybeAutoReset(); loadFromStorage(); render(); },
           applyReplacements
         };
       }
 
-      CATEGORIES.forEach(cfg => {
-        instances[cfg.key] = createCategory(cfg);
-      });
+      CATEGORIES.forEach(cfg => { instances[cfg.key] = createCategory(cfg); });
 
       const tenInput = document.getElementById('tenInput');
       const tenInputArea = document.getElementById('tenInputArea');
       const tenApplyBtn = document.getElementById('tenApplyBtn');
 
-      function initTenInput() {
-        tenInput.value = '';
-      }
+      function initTenInput() { tenInput.value = ''; }
 
       function applyTenInput() {
-        const parts = tenInput.value
-          .split(/[\s,，]+/)
-          .map(s => s.trim())
-          .filter(s => s !== '');
+        const parts = tenInput.value.split(/[\s,，]+/).map(s => s.trim()).filter(Boolean);
         instances.pve.applyReplacements(parts);
         tenInput.value = '';
-        if (parts.length > 0) {
-          showToast('10人周常已更新');
-        } else {
-          showToast('请输入 10 人副本名称');
-        }
+        showToast(parts.length > 0 ? '10人周常已更新' : '请输入 10 人副本名称');
       }
 
       tenApplyBtn.addEventListener('click', applyTenInput);
-
       tenInput.addEventListener('keydown', (e) => {
-        if (e.key === 'Enter') {
-          e.preventDefault();
-          applyTenInput();
-        }
+        if (e.key === 'Enter') { e.preventDefault(); applyTenInput(); }
       });
 
       const subtabBtns = document.querySelectorAll('.subtab-btn');
@@ -896,53 +882,31 @@
       function switchSubtab(target) {
         if (target === currentSubtab) return;
         currentSubtab = target;
-
-        subtabBtns.forEach(btn => {
-          btn.classList.toggle('active', btn.dataset.subtab === target);
-        });
-
-        Object.keys(panels).forEach(key => {
-          panels[key].classList.toggle('active', key === target);
-        });
-
+        subtabBtns.forEach(btn => btn.classList.toggle('active', btn.dataset.subtab === target));
+        Object.keys(panels).forEach(k => panels[k].classList.toggle('active', k === target));
         tenInputArea.classList.toggle('visible', target === 'pve');
-
-        if (target === 'pve') {
-          initTenInput();
-        }
-
-        if (target === 'report') {
-          renderWeeklyReport();
-        }
+        if (target === 'pve') initTenInput();
+        if (target === 'report') renderWeeklyReport();
       }
 
       subtabBtns.forEach(btn => {
-        btn.addEventListener('click', () => {
-          switchSubtab(btn.dataset.subtab);
-        });
+        btn.addEventListener('click', () => switchSubtab(btn.dataset.subtab));
       });
 
       initTenInput();
 
       document.querySelectorAll('.reset-all-btn').forEach(btn => {
         btn.addEventListener('click', () => {
-          let totalReset = 0;
-          Object.keys(instances).forEach(key => {
-            totalReset += instances[key].reset(true);
-          });
-          if (totalReset > 0) {
-            showToast(`已重置全部 ${totalReset} 项勾选`);
-          } else {
-            showToast('没有需要重置的勾选');
-          }
+          let total = 0;
+          Object.keys(instances).forEach(k => { total += instances[k].reset(true); });
+          showToast(total > 0 ? `已重置全部 ${total} 项勾选` : '没有需要重置的勾选');
         });
       });
 
-      // ===== 周报渲染：逐项列出 =====
+      // ===== 周报渲染 =====
       function renderWeeklyReport() {
         const body = document.getElementById('weeklyReportBody');
         if (!body) return;
-
         const historyRaw = localStorage.getItem(HISTORY_KEY);
         const history = historyRaw ? JSON.parse(historyRaw) : {};
 
@@ -958,11 +922,11 @@
           d.setDate(monday.getDate() + i);
           days.push({
             date: getDateKey(d),
-            label: ['一', '二', '三', '四', '五', '六', '日'][i]
+            label: ['一', '二', '三', '四', '五', '六', '日'][i],
+            weekday: d.getDay()
           });
         }
 
-        // 标题显示本周日期范围：本周记录（11/10-11/16）
         const titleEl = document.getElementById('weeklyReportTitle');
         if (titleEl && days.length === 7) {
           const start = days[0].date.slice(5).replace('-', '/');
@@ -982,18 +946,227 @@
           days.forEach(d => {
             const rec = history[d.date] && history[d.date][catKey];
             if (!rec) return;
-            if (Array.isArray(rec.daily)) {
-              rec.daily.forEach(it => {
-                if (it && it.text && !seen.has(it.text)) seen.set(it.text, { text: it.text, group: 'daily' });
-              });
-            }
-            if (Array.isArray(rec.weekly)) {
-              rec.weekly.forEach(it => {
-                if (it && it.text && !seen.has(it.text)) seen.set(it.text, { text: it.text, group: 'weekly' });
-              });
-            }
+            ['daily', 'weekly'].forEach(g => {
+              if (Array.isArray(rec[g])) {
+                rec[g].forEach(it => {
+                  if (it && it.text && !seen.has(it.text)) seen.set(it.text, { text: it.text, group: g });
+                });
+              }
+            });
           });
           return Array.from(seen.values());
+        }
+
+        function getDefaultTarget(text) {
+          for (const k of Object.keys(DEFAULT_ITEMS)) {
+            const f = [...DEFAULT_ITEMS[k].daily, ...DEFAULT_ITEMS[k].weekly].find(it => it.text === text);
+            if (f && f.target > 1) return f.target;
+          }
+          return 1;
+        }
+
+        function getWeekRecords(itemText, catKey) {
+          const recs = {};
+          days.forEach(d => {
+            const rec = history[d.date] && history[d.date][catKey];
+            if (!rec) return;
+            const all = [...(rec.daily || []), ...(rec.weekly || [])];
+            const found = all.find(it => it && it.text === itemText);
+            if (found) recs[d.date] = found;
+          });
+          return recs;
+        }
+
+        const isDone = (r) => r && (r.completed || (typeof r.count === 'number' && r.count > 0));
+
+        function computeCells(item, catKey) {
+          const cells = {};
+          days.forEach(d => { cells[d.date] = { cls: 'unchecked', text: '·' }; });
+
+          const isTen = item.text.startsWith('10人 · ');
+          const schedule = WEEKLY_SCHEDULE[item.text];
+          const recs = getWeekRecords(item.text, catKey);
+
+          if (isTen) {
+            const monThu = days.filter(d => d.weekday >= 1 && d.weekday <= 4);
+            const friSun = days.filter(d => d.weekday === 5 || d.weekday === 6 || d.weekday === 0);
+            days.forEach(d => { cells[d.date] = { cls: 'unchecked', text: '·' }; });
+
+            const monThuDone = monThu.filter(d => isDone(recs[d.date]));
+            if (monThuDone.length > 0) {
+              const hit = monThuDone[monThuDone.length - 1];
+              cells[hit.date] = { cls: 'checked', text: '✓' };
+              monThu.forEach(d => {
+                if (d.date !== hit.date) cells[d.date] = { cls: 'empty-cell', text: '—' };
+              });
+            }
+
+            const friSunDone = friSun.filter(d => isDone(recs[d.date]));
+            if (friSunDone.length === 1) {
+              cells[friSunDone[0].date] = { cls: 'checked', text: '✓' };
+              friSun.forEach(d => {
+                if (d.date !== friSunDone[0].date) cells[d.date] = { cls: 'empty-cell', text: '—' };
+              });
+            } else if (friSunDone.length >= 2) {
+              cells[friSunDone[0].date] = { cls: 'checked', text: '✓' };
+              const thu = days.find(d => d.weekday === 4);
+              if (thu) cells[thu.date] = { cls: 'checked', text: '✓' };
+              friSun.forEach(d => {
+                if (d.date !== friSunDone[0].date && d.date !== (thu && thu.date)) {
+                  cells[d.date] = { cls: 'empty-cell', text: '—' };
+                }
+              });
+            }
+            return cells;
+          }
+
+          if (item.text === '大跑商') {
+            days.forEach(d => { cells[d.date] = { cls: 'empty-cell', text: '—' }; });
+            const done = Object.values(recs).some(r => isDone(r));
+            const mon = days.find(d => d.weekday === 1);
+            if (mon) cells[mon.date] = done ? { cls: 'checked', text: '✓' } : { cls: 'unchecked', text: '·' };
+            return cells;
+          }
+
+          if (item.text === '帮会联赛') {
+            days.forEach(d => { cells[d.date] = { cls: 'empty-cell', text: '—' }; });
+            const done = Object.values(recs).some(r => isDone(r));
+            const wed = days.find(d => d.weekday === 3);
+            if (wed) cells[wed.date] = done ? { cls: 'checked', text: '✓' } : { cls: 'unchecked', text: '·' };
+            return cells;
+          }
+
+          if (item.text === '小攻防') {
+            days.forEach(d => { cells[d.date] = { cls: 'empty-cell', text: '—' }; });
+            const doneDates = Object.keys(recs).filter(k => isDone(recs[k])).sort();
+            const tue = days.find(d => d.weekday === 2);
+            const thu = days.find(d => d.weekday === 4);
+            if (doneDates.length === 1) {
+              const doneWd = new Date(doneDates[0] + 'T00:00:00').getDay();
+              let target = null;
+              if (doneWd >= 4) target = thu;
+              else if (doneWd >= 2) target = tue;
+              else target = tue;
+              if (target) cells[target.date] = { cls: 'checked', text: '✓' };
+            } else if (doneDates.length >= 2) {
+              if (tue) cells[tue.date] = { cls: 'checked', text: '✓' };
+              if (thu) cells[thu.date] = { cls: 'checked', text: '✓' };
+            }
+            [tue, thu].forEach(d => {
+              if (d && cells[d.date].cls === 'empty-cell' && doneDates.length < 2) {
+                cells[d.date] = { cls: 'unchecked', text: '·' };
+              }
+            });
+            return cells;
+          }
+
+          if (item.text === '帮会订单' || item.text === '家园BOSS') {
+            days.forEach(d => { cells[d.date] = { cls: 'unchecked', text: '·' }; });
+            const doneDates = Object.keys(recs).filter(k => isDone(recs[k]));
+            if (doneDates.length > 0) {
+              const hit = doneDates[0];
+              cells[hit] = { cls: 'checked', text: '✓' };
+              days.forEach(d => {
+                if (d.date !== hit) cells[d.date] = { cls: 'empty-cell', text: '—' };
+              });
+            }
+            return cells;
+          }
+
+          if (item.text === '世界 boss') {
+            days.forEach(d => { cells[d.date] = { cls: 'empty-cell', text: '—' }; });
+            const wed = days.find(d => d.weekday === 3);
+            const fri = days.find(d => d.weekday === 5);
+            const doneDates = Object.keys(recs).filter(k => isDone(recs[k])).sort();
+            if (doneDates.length === 1) {
+              const doneWd = new Date(doneDates[0] + 'T00:00:00').getDay();
+              let target = null;
+              if (doneWd >= 5) target = fri;
+              else if (doneWd >= 3) target = wed;
+              else target = wed;
+              if (target) cells[target.date] = { cls: 'checked', text: '✓' };
+            } else if (doneDates.length >= 2) {
+              if (wed) cells[wed.date] = { cls: 'checked', text: '✓' };
+              if (fri) cells[fri.date] = { cls: 'checked', text: '✓' };
+            }
+            [wed, fri].forEach(d => {
+              if (d && cells[d.date].cls === 'empty-cell') {
+                cells[d.date] = { cls: 'unchecked', text: '·' };
+              }
+            });
+            return cells;
+          }
+
+          if (item.text === '阵营周常') {
+            days.forEach(d => { cells[d.date] = { cls: 'empty-cell', text: '—' }; });
+            const sat = days.find(d => d.weekday === 6);
+            const sun = days.find(d => d.weekday === 0);
+            const doneDates = Object.keys(recs).filter(k => isDone(recs[k])).sort();
+
+            if (doneDates.length === 1) {
+              cells[doneDates[0]] = { cls: 'checked', text: '✓' };
+            } else if (doneDates.length >= 2) {
+              if (sat) cells[sat.date] = { cls: 'checked', text: '✓' };
+              if (sun) cells[sun.date] = { cls: 'checked', text: '✓' };
+            }
+
+            [sat, sun].forEach(d => {
+              if (d && cells[d.date].cls === 'empty-cell') {
+                cells[d.date] = { cls: 'unchecked', text: '·' };
+              }
+            });
+            return cells;
+          }
+
+          if (item.text === '大攻防') {
+            days.forEach(d => { cells[d.date] = { cls: 'empty-cell', text: '—' }; });
+            [6, 0].forEach(wd => {
+              const d = days.find(x => x.weekday === wd);
+              if (!d) return;
+              const r = recs[d.date];
+              const target = 2;
+              const count = r ? (typeof r.count === 'number' ? r.count : (r.completed ? target : 0)) : 0;
+              if (r && r.completed) cells[d.date] = { cls: 'checked', text: '✓' };
+              else cells[d.date] = { cls: 'unchecked', text: `${count}/${target}` };
+            });
+            return cells;
+          }
+
+          if (schedule) {
+            days.forEach(d => { cells[d.date] = { cls: 'empty-cell', text: '—' }; });
+            schedule.forEach(wd => {
+              const d = days.find(x => x.weekday === wd);
+              if (!d) return;
+              const r = recs[d.date];
+              cells[d.date] = isDone(r) ? { cls: 'checked', text: '✓' } : { cls: 'unchecked', text: '·' };
+            });
+            return cells;
+          }
+
+          days.forEach(d => {
+            const r = recs[d.date];
+            if (r) {
+              const target = typeof r.target === 'number' && r.target > 1 ? r.target : 1;
+              const count = typeof r.count === 'number' ? r.count : (r.completed ? target : 0);
+              if (COUNT_ITEMS.includes(item.text)) {
+                if (r.completed || count >= target) cells[d.date] = { cls: 'checked', text: '✓' };
+                else cells[d.date] = { cls: 'unchecked', text: `${count}/${target}` };
+              } else if (target > 1) {
+                if (r.completed || count > 0) cells[d.date] = { cls: 'checked', text: '✓' };
+                else cells[d.date] = { cls: 'unchecked', text: `0/${target}` };
+              } else {
+                cells[d.date] = r.completed ? { cls: 'checked', text: '✓' } : { cls: 'unchecked', text: '·' };
+              }
+            } else {
+              const defT = getDefaultTarget(item.text);
+              if (COUNT_ITEMS.includes(item.text) || (item.group === 'weekly' && defT > 1)) {
+                cells[d.date] = { cls: 'unchecked', text: `0/${defT}` };
+              } else {
+                cells[d.date] = { cls: 'unchecked', text: '·' };
+              }
+            }
+          });
+          return cells;
         }
 
         let html = '';
@@ -1006,58 +1179,19 @@
             return;
           }
 
-          itemList.sort((a, b) => {
-            if (a.group === b.group) return 0;
-            return a.group === 'daily' ? -1 : 1;
-          });
+          itemList.sort((a, b) => a.group === b.group ? 0 : (a.group === 'daily' ? -1 : 1));
 
           html += `<div class="report-section"><div class="report-section-title">${cat.label}</div>`;
           html += '<table><thead><tr><th style="text-align:left;">事项</th>';
-          days.forEach(d => {
-            html += `<th>${d.label}</th>`;
-          });
+          days.forEach(d => { html += `<th>${d.label}</th>`; });
           html += '</tr></thead><tbody>';
 
           itemList.forEach(item => {
+            const cells = computeCells(item, cat.key);
             html += `<tr><td class="item-name" title="${item.text.replace(/"/g, '&quot;')}">${item.text}</td>`;
             days.forEach(d => {
-              const rec = history[d.date] && history[d.date][cat.key];
-              let found = null;
-              if (rec) {
-                if (Array.isArray(rec.daily)) {
-                  found = rec.daily.find(it => it && it.text === item.text) || found;
-                }
-                if (!found && Array.isArray(rec.weekly)) {
-                  found = rec.weekly.find(it => it && it.text === item.text) || found;
-                }
-              }
-
-              if (found) {
-                const target = typeof found.target === 'number' && found.target > 1 ? found.target : 1;
-                const count = typeof found.count === 'number' ? found.count : (found.completed ? target : 0);
-
-                if (COUNT_ITEMS.includes(found.text)) {
-                  // 跑商、名望：全完成打钩，否则显示次数/目标
-                  if (found.completed || count >= target) {
-                    html += '<td class="checked">✓</td>';
-                  } else {
-                    html += `<td class="unchecked">${count}/${target}</td>`;
-                  }
-                } else {
-                  // 其他条目：有进度或完成就打钩，否则显示点
-                  if (found.completed || count > 0) {
-                    html += '<td class="checked">✓</td>';
-                  } else {
-                    html += '<td class="unchecked">·</td>';
-                  }
-                }
-              } else {
-                if (rec && typeof rec.completed === 'number' && typeof rec.total === 'number') {
-                  html += `<td class="legacy">${rec.completed}/${rec.total}</td>`;
-                } else {
-                  html += '<td class="empty-cell">—</td>';
-                }
-              }
+              const c = cells[d.date] || { cls: 'unchecked', text: '·' };
+              html += `<td class="${c.cls}">${c.text}</td>`;
             });
             html += '</tr>';
           });
@@ -1071,10 +1205,7 @@
       document.getElementById('copyReportBtn').addEventListener('click', () => {
         const body = document.getElementById('weeklyReportBody');
         const tables = body.querySelectorAll('table');
-        if (tables.length === 0) {
-          showToast('本周暂无记录');
-          return;
-        }
+        if (tables.length === 0) { showToast('本周暂无记录'); return; }
         let text = '';
         body.querySelectorAll('.report-section').forEach(section => {
           const title = section.querySelector('.report-section-title');
@@ -1082,19 +1213,13 @@
           const table = section.querySelector('table');
           if (table) {
             Array.from(table.querySelectorAll('tr')).forEach(tr => {
-              text += Array.from(tr.querySelectorAll('th,td'))
-                .map(cell => cell.innerText.replace(/\n/g, ' '))
-                .join('\t') + '\n';
+              text += Array.from(tr.querySelectorAll('th,td')).map(c => c.innerText.replace(/\n/g, ' ')).join('\t') + '\n';
             });
           }
           text += '\n';
         });
         if (navigator.clipboard && navigator.clipboard.writeText) {
-          navigator.clipboard.writeText(text.trim()).then(() => {
-            showToast('已复制本周表格');
-          }).catch(() => {
-            showToast('复制失败，请手动选择表格');
-          });
+          navigator.clipboard.writeText(text.trim()).then(() => showToast('已复制本周表格')).catch(() => showToast('复制失败，请手动选择表格'));
         } else {
           showToast('当前环境不支持自动复制');
         }
