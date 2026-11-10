@@ -24,7 +24,7 @@
       max-width: 680px;
       background: #ffffff;
       border: 1px solid #e5e5e5;
-      border-radius: 16px;
+      border-radius: 12px;
       padding: 2.2rem 2rem;
       box-shadow: 0 8px 30px rgba(0, 0, 0, 0.06);
     }
@@ -49,7 +49,7 @@
       font-family: inherit;
       background: #ffffff;
       border: 1px solid #e8e8e8;
-      border-radius: 8px;
+      border-radius: 6px;
       color: #888;
       cursor: pointer;
       transition: all 0.2s ease;
@@ -69,7 +69,7 @@
       font-family: inherit;
       background: #fafafa;
       border: 1px solid #e0e0e0;
-      border-radius: 10px;
+      border-radius: 8px;
       outline: none;
       color: #1a1a1a;
       transition: all 0.2s ease;
@@ -85,7 +85,7 @@
       background: #1a1a1a;
       color: #ffffff;
       border: 1px solid #1a1a1a;
-      border-radius: 10px;
+      border-radius: 8px;
       cursor: pointer;
       transition: all 0.2s ease;
       white-space: nowrap;
@@ -101,19 +101,19 @@
       font-weight: 500;
       color: #aaa;
       letter-spacing: 0.03em;
-      margin: 1rem 0 0.4rem 0.2rem;
+      margin: 1.4rem 0 0.4rem 0.2rem;
       user-select: none;
     }
     .group-title:first-of-type { margin-top: 0; }
 
-    .todo-list { list-style: none; display: flex; flex-direction: column; gap: 0.35rem; }
+    .todo-list { list-style: none; display: flex; flex-direction: column; gap: 0.1rem; }
 
     .todo-item {
       display: flex;
       align-items: center;
       gap: 0.75rem;
-      padding: 0.75rem 1rem;
-      border-radius: 10px;
+      padding: 0.5rem 1rem;
+      border-radius: 8px;
       background: transparent;
       transition: background 0.25s ease, box-shadow 0.2s ease;
       cursor: pointer;
@@ -150,7 +150,7 @@
       flex-shrink: 0;
       background: #ffffff;
       border: 1.5px solid #dcdcdc;
-      border-radius: 8px;
+      border-radius: 6px;
       cursor: pointer;
       display: flex;
       align-items: center;
@@ -175,7 +175,7 @@
     .todo-item input[type="checkbox"]:disabled {
       cursor: not-allowed;
       background: #f0f0f0;
-      border-color: #bdbdbd;
+      border-color: #e0e0e0;
     }
     .todo-item.is-locked { opacity: 0.4; cursor: not-allowed; }
     .todo-item.is-locked:hover { background: transparent; box-shadow: none; }
@@ -212,7 +212,7 @@
       font-weight: 500;
       font-family: inherit;
       color: #888;
-      border-radius: 8px;
+      border-radius: 6px;
       cursor: pointer;
       transition: all 0.2s ease;
       white-space: nowrap;
@@ -231,7 +231,7 @@
       color: #ffffff;
       font-size: 0.85rem;
       padding: 0.6rem 1.2rem;
-      border-radius: 8px;
+      border-radius: 6px;
       opacity: 0;
       pointer-events: none;
       transition: all 0.25s ease;
@@ -296,13 +296,13 @@
 
     @media (max-width: 480px) {
       body { padding: 2rem 0.8rem 1.2rem; }
-      .app { padding: 1.5rem 1.2rem; border-radius: 14px; }
+      .app { padding: 1.5rem 1.2rem; border-radius: 10px; }
       h1 { font-size: 1.5rem; }
       .subtab-btn { padding: 0.45rem 0.9rem; font-size: 0.9rem; }
       .top-input input { padding: 0.65rem 0.9rem; font-size: 0.9rem; }
       .top-input button { padding: 0.65rem 1rem; font-size: 0.85rem; }
-      .todo-item { padding: 0.7rem 0.6rem; gap: 0.6rem; }
-      .todo-item input[type="checkbox"] { width: 1.35rem; height: 1.35rem; border-radius: 7px; }
+      .todo-item { padding: 0.6rem 0.6rem; gap: 0.6rem; }
+      .todo-item input[type="checkbox"] { width: 1.35rem; height: 1.35rem; border-radius: 5px; }
       .todo-text { font-size: 1rem; }
       .count-label { font-size: 0.75rem; min-width: 2rem; }
       .footer { flex-direction: row; align-items: center; gap: 0.6rem; }
@@ -327,7 +327,7 @@
     </div>
 
     <div class="top-input visible" id="tenInputArea">
-      <input type="text" id="tenInput" placeholder="输入本周 10 人（空格/逗号分隔，可分两次填 A、B）" autocomplete="off">
+      <input type="text" id="tenInput" placeholder="本周 10 人，可空格/逗号分隔" autocomplete="off">
       <button id="tenApplyBtn">应用</button>
     </div>
 
@@ -496,12 +496,15 @@
         toast._timer = setTimeout(() => toast.classList.remove('show'), 1600);
       }
 
-      // 是否已到可做日：有日程的周常，只有可做日当天允许点击
+      // 有日程的周常：可做日当天及之后都可点
       function isClickableNow(item) {
         const schedule = WEEKLY_SCHEDULE[item.text];
-        if (!schedule) return true;
+        if (!schedule || schedule.length === 0) return true;
+        const toOrder = (wd) => (wd === 0 ? 7 : wd);
         const todayWd = new Date().getDay();
-        return schedule.includes(todayWd);
+        const todayOrder = toOrder(todayWd);
+        const earliest = Math.min(...schedule.map(toOrder));
+        return todayOrder >= earliest;
       }
 
       const instances = {};
@@ -639,7 +642,6 @@
 
           let changed = false;
 
-          // 每天：只清空日常（单目标勾选；多目标日常按天独立，不动）
           if (lastDaily !== today) {
             data.daily = data.daily.map(item => {
               if (item.target > 1) return item;
@@ -649,7 +651,6 @@
             changed = true;
           }
 
-          // 跨周：所有分类的所有条目全部恢复默认
           if (lastMonday && lastMonday !== thisMonday) {
             data = buildDefaultItems();
             changed = true;
