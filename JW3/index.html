@@ -830,26 +830,35 @@
           const parts = texts.map(s => (s || '').trim()).filter(Boolean);
           if (parts.length === 0) return;
 
-          const slots = [1, 2];
-          const isPlaceholder = (text) => {
-            if (!text) return true;
-            if (text === '10人 · 待填写') return true;
-            if (text === '10人 · A' || text === '10人 · B') return true;
-            return false;
-          };
-
-          let filled = 0;
+          const slots = [1, 2]; // 只覆盖第 2、3 项，保留第 1 项洛阳之战
+          let idx = 0;
           for (const p of parts) {
-            const idx = slots.find(i => items.weekly[i] && isPlaceholder(items.weekly[i].text));
-            if (idx === undefined) break;
-            items.weekly[idx].text = `10人 · ${p}`;
-            filled++;
+            if (idx >= slots.length) break;
+            const i = slots[idx];
+            if (items.weekly[i]) {
+              items.weekly[i].text = `10人 · ${p}`;
+              items.weekly[i].dailyState = {};
+              items.weekly[i].completed = false;
+              items.weekly[i].count = 0;
+            }
+            idx++;
           }
 
-          if (filled === 0) {
-            showToast('本周 10 人已填写，跨周后可重新填写');
-            return;
-          }
+          // 同步历史里所有日期的 10 人名称
+          try {
+            const rawH = localStorage.getItem(HISTORY_KEY);
+            if (rawH) {
+              const history = JSON.parse(rawH);
+              const newNames = items.weekly.slice(1, 3).map(it => it.text);
+              Object.keys(history).forEach(date => {
+                const rec = history[date] && history[date].pve;
+                if (!rec || !Array.isArray(rec.weekly)) return;
+                if (rec.weekly[1]) rec.weekly[1].text = newNames[0];
+                if (rec.weekly[2]) rec.weekly[2].text = newNames[1];
+              });
+              localStorage.setItem(HISTORY_KEY, JSON.stringify(history));
+            }
+          } catch (err) {}
 
           saveToStorage();
           render();
