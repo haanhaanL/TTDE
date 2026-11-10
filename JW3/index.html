@@ -29,14 +29,21 @@
       box-shadow: 0 8px 30px rgba(0, 0, 0, 0.06);
     }
 
-    h1 {
+    .header-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 1rem;
+      padding-bottom: 0.75rem;
+      margin-bottom: 1.2rem;
+      border-bottom: 1px solid #ebebeb;
+    }
+
+    .header-row h1 {
       font-size: 1.6rem;
       font-weight: 600;
       letter-spacing: -0.01em;
       color: #1a1a1a;
-      padding-bottom: 0.75rem;
-      margin-bottom: 1.2rem;
-      border-bottom: 1px solid #ebebeb;
       user-select: none;
     }
 
@@ -299,7 +306,7 @@
     @media (max-width: 480px) {
       body { padding: 2rem 0.8rem 1.2rem; }
       .app { padding: 1.5rem 1.2rem; border-radius: 10px; }
-      h1 { font-size: 1.35rem; }
+      .header-row h1 { font-size: 1.35rem; }
       .subtab-btn { padding: 0.35rem 0.75rem; font-size: 0.8rem; }
       .top-input input { padding: 0.5rem 0.8rem; font-size: 0.85rem; }
       .top-input button { padding: 0.5rem 0.9rem; font-size: 0.8rem; }
@@ -318,7 +325,10 @@
 </head>
 <body>
   <div class="app">
-    <h1>剑网3</h1>
+    <div class="header-row">
+      <h1>剑网3</h1>
+      <button class="tool-btn" id="resetAllTop">重置全部</button>
+    </div>
 
     <div class="subtabs">
       <button class="subtab-btn active" data-subtab="pve">PVE</button>
@@ -342,7 +352,6 @@
         <span id="counter-pve" class="counter empty">0 项</span>
         <div class="footer-actions">
           <button class="tool-btn" id="reset-pve">重置</button>
-          <button class="tool-btn reset-all-btn">重置全部</button>
         </div>
       </div>
     </div>
@@ -356,7 +365,6 @@
         <span id="counter-pvp" class="counter empty">0 项</span>
         <div class="footer-actions">
           <button class="tool-btn" id="reset-pvp">重置</button>
-          <button class="tool-btn reset-all-btn">重置全部</button>
         </div>
       </div>
     </div>
@@ -370,7 +378,6 @@
         <span id="counter-pvx" class="counter empty">0 项</span>
         <div class="footer-actions">
           <button class="tool-btn" id="reset-pvx">重置</button>
-          <button class="tool-btn reset-all-btn">重置全部</button>
         </div>
       </div>
     </div>
@@ -384,7 +391,6 @@
         <span id="counter-common" class="counter empty">0 项</span>
         <div class="footer-actions">
           <button class="tool-btn" id="reset-common">重置</button>
-          <button class="tool-btn reset-all-btn">重置全部</button>
         </div>
       </div>
     </div>
@@ -789,46 +795,62 @@
         function resetCategory(silent) {
           const today = getDateKey(new Date());
           let completedCount = 0;
+
           const resetList = (list) => list.map(item => {
             const st = item.dailyState && item.dailyState[today];
             if (st && st.completed) completedCount++;
             return { ...item, dailyState: { ...(item.dailyState || {}), [today]: { count: 0, completed: false } } };
           });
+
           items.daily = resetList(items.daily);
           items.weekly = resetList(items.weekly);
-          if (completedCount === 0) return 0;
+
+          if (key === 'pve') {
+            const tenSlots = [1, 2];
+            const placeholders = ['10人 · A', '10人 · B'];
+            tenSlots.forEach((idx, i) => {
+              if (items.weekly[idx]) {
+                items.weekly[idx].text = placeholders[i];
+                items.weekly[idx].dailyState = {};
+                items.weekly[idx].completed = false;
+                items.weekly[idx].count = 0;
+              }
+            });
+          }
+
+          if (completedCount === 0 && key !== 'pve') return 0;
           saveToStorage();
           render();
-          if (!silent) showToast(`已重置 ${completedCount} 项勾选`);
-          return completedCount;
+          if (!silent) showToast(key === 'pve' ? '已重置 PVE（10 人恢复可填写）' : `已重置 ${completedCount} 项勾选`);
+          return completedCount || 1;
         }
 
         function applyReplacements(texts) {
           if (key !== 'pve' || !Array.isArray(texts)) return;
           const parts = texts.map(s => (s || '').trim()).filter(Boolean);
           if (parts.length === 0) return;
+
           const slots = [1, 2];
-          const isPlaceholder = (text) => !text || /^10人 · (A|B)$/.test(text);
-          let slotIdx = 0;
+          const isPlaceholder = (text) => {
+            if (!text) return true;
+            if (text === '10人 · 待填写') return true;
+            if (text === '10人 · A' || text === '10人 · B') return true;
+            return false;
+          };
+
+          let filled = 0;
           for (const p of parts) {
-            let placed = false;
-            while (slotIdx < slots.length) {
-              const idx = slots[slotIdx];
-              const cur = items.weekly[idx];
-              if (cur && isPlaceholder(cur.text)) {
-                cur.text = `10人 · ${p}`;
-                slotIdx++;
-                placed = true;
-                break;
-              }
-              slotIdx++;
-            }
-            if (!placed) {
-              const idx = slots[slotIdx % slots.length];
-              if (items.weekly[idx]) items.weekly[idx].text = `10人 · ${p}`;
-              slotIdx++;
-            }
+            const idx = slots.find(i => items.weekly[i] && isPlaceholder(items.weekly[i].text));
+            if (idx === undefined) break;
+            items.weekly[idx].text = `10人 · ${p}`;
+            filled++;
           }
+
+          if (filled === 0) {
+            showToast('本周 10 人已填写，跨周后可重新填写');
+            return;
+          }
+
           saveToStorage();
           render();
         }
@@ -865,7 +887,9 @@
         const parts = tenInput.value.split(/[\s,，]+/).map(s => s.trim()).filter(Boolean);
         instances.pve.applyReplacements(parts);
         tenInput.value = '';
-        showToast(parts.length > 0 ? '10人周常已更新' : '请输入 10 人副本名称');
+        if (parts.length === 0) {
+          showToast('请输入 10 人副本名称');
+        }
       }
 
       tenApplyBtn.addEventListener('click', applyTenInput);
@@ -900,12 +924,10 @@
 
       initTenInput();
 
-      document.querySelectorAll('.reset-all-btn').forEach(btn => {
-        btn.addEventListener('click', () => {
-          let total = 0;
-          Object.keys(instances).forEach(k => { total += instances[k].reset(true); });
-          showToast(total > 0 ? `已重置全部 ${total} 项勾选` : '没有需要重置的勾选');
-        });
+      document.getElementById('resetAllTop').addEventListener('click', () => {
+        let total = 0;
+        Object.keys(instances).forEach(k => { total += instances[k].reset(true); });
+        showToast(total > 0 ? `已重置全部 ${total} 项勾选` : '没有需要重置的勾选');
       });
 
       // ===== 导出 / 导入（剪贴板） =====
@@ -982,7 +1004,6 @@
         }
         if (!window.confirm('导入将覆盖当前所有数据，确定继续？')) return;
 
-        // 清掉旧 jx3_ 数据
         const keys = [];
         for (let i = 0; i < localStorage.length; i++) {
           const k = localStorage.key(i);
@@ -990,7 +1011,6 @@
         }
         keys.forEach(k => localStorage.removeItem(k));
 
-        // 写入新数据
         Object.keys(data).forEach(k => {
           if (k.startsWith(STORAGE_PREFIX) && typeof data[k] === 'string') {
             localStorage.setItem(k, data[k]);
