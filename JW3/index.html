@@ -551,6 +551,7 @@
               const base = buildItem(d);
               const old = oldList[i] || {};
               const oldText = typeof old.text === 'string' && old.text ? old.text : base.text;
+              // PVX 第 5 项强制“宠物出行”
               const finalText = (key === 'pvx' && i === 4) ? base.text : oldText;
 
               let dailyState = {};
@@ -805,6 +806,7 @@
           items.daily = resetList(items.daily);
           items.weekly = resetList(items.weekly);
 
+          // PVE 重置：10 人恢复 A/B 占位，清空计数
           if (key === 'pve') {
             const tenSlots = [1, 2];
             const placeholders = ['10人 · A', '10人 · B'];
@@ -837,9 +839,7 @@
             const i = slots[idx];
             if (items.weekly[i]) {
               items.weekly[i].text = `10人 · ${p}`;
-              items.weekly[i].dailyState = {};
-              items.weekly[i].completed = false;
-              items.weekly[i].count = 0;
+              // 保留 dailyState / completed / count，不清旧计数
             }
             idx++;
           }
