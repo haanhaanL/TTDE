@@ -428,6 +428,8 @@
           weekly: [
             { text: '大跑商' },
             { text: '帮会联赛' },
+            { text: '小攻防', target: 2 },
+            { text: '大攻防', target: 2 },
             { text: '阵营周常', target: 2 }
           ]
         },
@@ -458,6 +460,8 @@
       const COUNT_ITEMS = ['跑商', '名望'];
 
       const WEEKLY_SCHEDULE = {
+        '小攻防': [2, 4],
+        '大攻防': [6, 0],
         '大跑商': [1],
         '帮会联赛': [3],
         '世界 boss': [3, 5],
@@ -603,23 +607,13 @@
           } catch (err) {}
         }
 
-        // 周常：本周内共用 dailyState['week']；日常：按当天
-        function getStateKey(groupKey) {
-          return groupKey === 'weekly' ? 'week' : getDateKey(new Date());
-        }
-
-        function getState(item, groupKey) {
-          const k = getStateKey(groupKey);
-          if (!item.dailyState) item.dailyState = {};
-          if (!item.dailyState[k]) item.dailyState[k] = { count: 0, completed: false };
-          return item.dailyState[k];
-        }
-
         function getTodayState(item) {
-          return getState(item, 'daily');
+          const today = getDateKey(new Date());
+          if (!item.dailyState) item.dailyState = {};
+          if (!item.dailyState[today]) item.dailyState[today] = { count: 0, completed: false };
+          return item.dailyState[today];
         }
 
-        // 只写日常；周常历史由点击时写入，不在这里覆盖
         function recordHistorySnapshot() {
           try {
             const today = getDateKey(new Date());
@@ -627,14 +621,10 @@
             const history = raw ? JSON.parse(raw) : {};
             if (!history[today]) history[today] = {};
             const toSnapshot = (list) => list.map(it => {
-              const st = getState(it, 'daily');
+              const st = getTodayState(it);
               return { text: it.text, target: it.target, count: st.count, completed: st.completed };
             });
-            const prev = history[today][key] || {};
-            history[today][key] = {
-              daily: toSnapshot(items.daily),
-              weekly: Array.isArray(prev.weekly) ? prev.weekly : []
-            };
+            history[today][key] = { daily: toSnapshot(items.daily), weekly: toSnapshot(items.weekly) };
             localStorage.setItem(HISTORY_KEY, JSON.stringify(history));
             window.dispatchEvent(new CustomEvent('jx3-history-updated'));
           } catch (err) {}
@@ -691,11 +681,7 @@
                 const st = (it.dailyState && it.dailyState[todayKey]) || { count: 0, completed: false };
                 return { text: it.text, target: it.target, count: st.count, completed: st.completed };
               });
-              const prev = history[todayKey][key] || {};
-              history[todayKey][key] = {
-                daily: toSnapshot(data.daily),
-                weekly: Array.isArray(prev.weekly) ? prev.weekly : []
-              };
+              history[todayKey][key] = { daily: toSnapshot(data.daily), weekly: toSnapshot(data.weekly) };
               localStorage.setItem(HISTORY_KEY, JSON.stringify(history));
               window.dispatchEvent(new CustomEvent('jx3-history-updated'));
             } catch (err) {}
@@ -707,10 +693,9 @@
         }
 
         function updateCounter() {
-          const dailyCompleted = items.daily.filter(t => getState(t, 'daily').completed).length;
-          const weeklyCompleted = items.weekly.filter(t => getState(t, 'weekly').completed).length;
-          const total = items.daily.length + items.weekly.length;
-          const completed = dailyCompleted + weeklyCompleted;
+          const all = getAllItems();
+          const total = all.length;
+          const completed = all.filter(t => getTodayState(t).completed).length;
           if (total === 0) {
             counterEl.textContent = '0 项';
             counterEl.classList.add('empty');
@@ -727,8 +712,8 @@
             const li = document.createElement('li');
             li.className = 'todo-item';
             const isMulti = item.target > 1;
-            const state = getState(item, groupKey);
-            const completed = state.completed;
+            const todayState = getTodayState(item);
+            const completed = todayState.completed;
             const clickable = isClickableNow(item);
 
             if (completed) li.classList.add('completed');
@@ -747,7 +732,7 @@
             if (isMulti) {
               const countSpan = document.createElement('span');
               countSpan.className = 'count-label';
-              countSpan.textContent = `${state.count}/${item.target}`;
+              countSpan.textContent = `${todayState.count}/${item.target}`;
               li.appendChild(countSpan);
             }
 
@@ -780,28 +765,6 @@
           updateCounter();
         }
 
-        // 写周报历史里今天的周常增量
-        function writeWeeklyDelta(catKey, itemText, target, dateKey, deltaCount, completed) {
-          try {
-            const raw = localStorage.getItem(HISTORY_KEY);
-            const history = raw ? JSON.parse(raw) : {};
-            if (!history[dateKey]) history[dateKey] = {};
-            if (!history[dateKey][catKey]) history[dateKey][catKey] = { daily: [], weekly: [] };
-            if (!Array.isArray(history[dateKey][catKey].weekly)) history[dateKey][catKey].weekly = [];
-            const list = history[dateKey][catKey].weekly;
-            let found = list.find(it => it && it.text === itemText);
-            if (!found) {
-              found = { text: itemText, target, count: 0, completed: false };
-              list.push(found);
-            }
-            found.target = target;
-            found.count = Math.max(0, deltaCount);
-            found.completed = !!completed;
-            localStorage.setItem(HISTORY_KEY, JSON.stringify(history));
-            window.dispatchEvent(new CustomEvent('jx3-history-updated'));
-          } catch (err) {}
-        }
-
         function handleClick(groupKey, index) {
           const item = items[groupKey] && items[groupKey][index];
           if (!item) return;
@@ -809,10 +772,7 @@
             showToast('未到可做日');
             return;
           }
-
-          const today = getDateKey(new Date());
-          const st = getState(item, groupKey);
-
+          const st = getTodayState(item);
           if (item.target > 1) {
             if (st.completed) {
               st.count = 0;
@@ -828,13 +788,6 @@
             st.completed = !st.completed;
             st.count = st.completed ? 1 : 0;
           }
-
-          if (groupKey === 'weekly') {
-            // 今天增量：本次是加还是减
-            const delta = st.completed ? item.target : (st.count > 0 ? st.count : 0);
-            writeWeeklyDelta(key, item.text, item.target, today, delta, st.completed);
-          }
-
           saveToStorage();
           render();
         }
@@ -843,16 +796,14 @@
           const today = getDateKey(new Date());
           let completedCount = 0;
 
-          const resetList = (list, groupKey) => list.map(item => {
-            const st = getState(item, groupKey);
-            if (st.completed) completedCount++;
-            st.count = 0;
-            st.completed = false;
-            return item;
+          const resetList = (list) => list.map(item => {
+            const st = item.dailyState && item.dailyState[today];
+            if (st && st.completed) completedCount++;
+            return { ...item, dailyState: { ...(item.dailyState || {}), [today]: { count: 0, completed: false } } };
           });
 
-          resetList(items.daily, 'daily');
-          resetList(items.weekly, 'weekly');
+          items.daily = resetList(items.daily);
+          items.weekly = resetList(items.weekly);
 
           if (key === 'pve') {
             const tenSlots = [1, 2];
@@ -866,35 +817,6 @@
               }
             });
           }
-
-          // 周常重置：清本周历史里的周常记录
-          try {
-            const raw = localStorage.getItem(HISTORY_KEY);
-            if (raw) {
-              const history = JSON.parse(raw);
-              const weekDays = [];
-              const monday = new Date();
-              const day = monday.getDay();
-              const diff = day === 0 ? -6 : 1 - day;
-              monday.setDate(monday.getDate() + diff);
-              for (let i = 0; i < 7; i++) {
-                const d = new Date(monday);
-                d.setDate(monday.getDate() + i);
-                weekDays.push(getDateKey(d));
-              }
-              weekDays.forEach(date => {
-                const rec = history[date] && history[date][key];
-                if (!rec || !Array.isArray(rec.weekly)) return;
-                rec.weekly.forEach(it => {
-                  if (it) {
-                    it.count = 0;
-                    it.completed = false;
-                  }
-                });
-              });
-              localStorage.setItem(HISTORY_KEY, JSON.stringify(history));
-            }
-          } catch (err) {}
 
           if (completedCount === 0 && key !== 'pve') return 0;
           saveToStorage();
@@ -1013,7 +935,6 @@
         showToast(total > 0 ? `已重置全部 ${total} 项勾选` : '没有需要重置的勾选');
       });
 
-      // ===== 导出 / 导入（剪贴板） =====
       function collectStorage() {
         const data = {};
         for (let i = 0; i < localStorage.length; i++) {
@@ -1107,7 +1028,6 @@
       document.getElementById('exportBtn').addEventListener('click', exportToClipboard);
       document.getElementById('importBtn').addEventListener('click', importFromClipboard);
 
-      // ===== 周报渲染 =====
       function renderWeeklyReport() {
         const body = document.getElementById('weeklyReportBody');
         if (!body) return;
@@ -1240,6 +1160,30 @@
             return cells;
           }
 
+          if (item.text === '小攻防') {
+            days.forEach(d => { cells[d.date] = { cls: 'empty-cell', text: '—' }; });
+            const doneDates = Object.keys(recs).filter(k => isDone(recs[k])).sort();
+            const tue = days.find(d => d.weekday === 2);
+            const thu = days.find(d => d.weekday === 4);
+            if (doneDates.length === 1) {
+              const doneWd = new Date(doneDates[0] + 'T00:00:00').getDay();
+              let target = null;
+              if (doneWd >= 4) target = thu;
+              else if (doneWd >= 2) target = tue;
+              else target = tue;
+              if (target) cells[target.date] = { cls: 'checked', text: '✓' };
+            } else if (doneDates.length >= 2) {
+              if (tue) cells[tue.date] = { cls: 'checked', text: '✓' };
+              if (thu) cells[thu.date] = { cls: 'checked', text: '✓' };
+            }
+            [tue, thu].forEach(d => {
+              if (d && cells[d.date].cls === 'empty-cell' && doneDates.length < 2) {
+                cells[d.date] = { cls: 'unchecked', text: '·' };
+              }
+            });
+            return cells;
+          }
+
           if (item.text === '帮会订单' || item.text === '家园BOSS') {
             days.forEach(d => { cells[d.date] = { cls: 'unchecked', text: '·' }; });
             const doneDates = Object.keys(recs).filter(k => isDone(recs[k]));
@@ -1298,6 +1242,21 @@
             return cells;
           }
 
+          if (item.text === '大攻防') {
+            days.forEach(d => { cells[d.date] = { cls: 'empty-cell', text: '—' }; });
+            [6, 0].forEach(wd => {
+              const d = days.find(x => x.weekday === wd);
+              if (!d) return;
+              const r = recs[d.date];
+              const target = 2;
+              const count = r ? (typeof r.count === 'number' ? r.count : (r.completed ? target : 0)) : 0;
+              if (r && (r.completed || count >= target)) cells[d.date] = { cls: 'checked', text: '✓' };
+              else if (r && count > 0) cells[d.date] = { cls: 'checked', text: `${count}/${target}` };
+              else cells[d.date] = { cls: 'unchecked', text: `0/${target}` };
+            });
+            return cells;
+          }
+
           if (schedule) {
             days.forEach(d => { cells[d.date] = { cls: 'empty-cell', text: '—' }; });
             schedule.forEach(wd => {
@@ -1316,9 +1275,11 @@
               const count = typeof r.count === 'number' ? r.count : (r.completed ? target : 0);
               if (COUNT_ITEMS.includes(item.text)) {
                 if (r.completed || count >= target) cells[d.date] = { cls: 'checked', text: '✓' };
-                else cells[d.date] = { cls: 'unchecked', text: `${count}/${target}` };
+                else if (count > 0) cells[d.date] = { cls: 'checked', text: `${count}/${target}` };
+                else cells[d.date] = { cls: 'unchecked', text: `0/${target}` };
               } else if (target > 1) {
-                if (r.completed || count > 0) cells[d.date] = { cls: 'checked', text: '✓' };
+                if (r.completed || count >= target) cells[d.date] = { cls: 'checked', text: '✓' };
+                else if (count > 0) cells[d.date] = { cls: 'checked', text: `${count}/${target}` };
                 else cells[d.date] = { cls: 'unchecked', text: `0/${target}` };
               } else {
                 cells[d.date] = r.completed ? { cls: 'checked', text: '✓' } : { cls: 'unchecked', text: '·' };
